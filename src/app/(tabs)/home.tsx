@@ -8,7 +8,6 @@ import { BudgetBar } from "@/components/budget-bar";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
-import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { TouchableOpacity } from "react-native";
@@ -40,6 +39,15 @@ export default function HomeScreen() {
     percentSpent: 0,
     budget: 0,
   });
+  const [recentExpenses, setRecentExpenses] = useState<
+    {
+      id: string;
+      amount: number;
+      category: string | null;
+      description: string | null;
+      created_at: string;
+    }[]
+  >([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -56,6 +64,12 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       getMonthlyStats();
+    }, []),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      getRecentExpenses();
     }, []),
   );
 
@@ -95,6 +109,22 @@ export default function HomeScreen() {
     });
   };
 
+  const getRecentExpenses = async () => {
+    // fetch the 10 last expenses for the user
+    const { data, error } = await supabase
+      .from("expenses")
+      .select("id,amount,category,description,created_at")
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (error) {
+      console.error("Failure to fetch recent expenses:", error);
+      return;
+    }
+    // visual note inside metro
+    console.log("Fetched", data?.length, "expenses");
+    if (data) setRecentExpenses(data);
+  };
+
   useEffect(() => {
     const checkSupabase = async () => {
       const { data, error } = await supabase.from("categories").select("*");
@@ -119,14 +149,37 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </ThemedView>
 
-        <ThemedView style={styles.heroSection}>
+        {/*<ThemedView style={styles.heroSection}>
           <Image
             source={require("@/assets/images/budgetify_name.png")}
             style={{ width: 450, height: 150, borderRadius: 0 }}
           />
-        </ThemedView>
+        </ThemedView>*/}
 
         <BudgetBar spendingLimit={stats.budget} outflow={stats.totalSpent} />
+
+        <ThemedText type="subtitle">Recent Expenses</ThemedText>
+        {recentExpenses.length === 0 ? (
+          <ThemedText type="small">No expenses yet</ThemedText>
+        ) : (
+          recentExpenses.map((expense) => (
+            <ThemedView key={expense.id} style={styles.expenseRow}>
+              <ThemedView style={{ flex: 1 }}>
+                <ThemedText themeColor="backgroundSelected">
+                  {expense.category ?? "Uncategorized"}
+                </ThemedText>
+                {expense.description && (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {expense.description}
+                  </ThemedText>
+                )}
+              </ThemedView>
+              <ThemedText style={{ color: "#C0392B" }}>
+                -${Number(expense.amount).toFixed(2)}
+              </ThemedText>
+            </ThemedView>
+          ))
+        )}
       </SafeAreaView>
     </ThemedView>
   );
@@ -179,5 +232,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#2D612A",
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  expenseRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "stretch",
+    paddingVertical: Spacing.two,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    gap: Spacing.three,
   },
 });
