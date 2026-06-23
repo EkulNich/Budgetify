@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
-import { useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import {
     Alert,
     ScrollView,
@@ -15,9 +16,6 @@ import { ThemedView } from "@/components/themed-view";
 import { Colors, Spacing } from "@/constants/theme";
 
 export default function StatsScreen() {
-  const [salary, setSalary] = useState("");
-  const [hours, setHours] = useState("");
-  const [loading, setLoading] = useState(false);
   const [savedSalary, setSavedSalary] = useState<number | null>(null);
   const [savedHours, setSavedHours] = useState<number | null>(null);
   const [expenseAmount, setExpenseAmount] = useState("");
@@ -25,67 +23,39 @@ export default function StatsScreen() {
 
   const scheme = useColorScheme();
   const colors = Colors[scheme ?? "light"];
-  const hoursRef = useRef<TextInput>(null);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+  useFocusEffect(
+    useCallback(() => {
+      const fetchProfile = async () => {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("monthly_salary, hours_per_week")
-        .eq("id", user.id)
-        .single();
+        const { data } = await supabase
+          .from("profiles")
+          .select("monthly_salary, hours_per_week")
+          .eq("id", user.id)
+          .single();
 
-      if (data) {
-        setSavedSalary(data.monthly_salary);
-        setSavedHours(data.hours_per_week);
-      }
-    };
+        if (data) {
+          setSavedSalary(data.monthly_salary);
+          setSavedHours(data.hours_per_week);
+        }
+      };
 
-    fetchProfile();
-  }, []);
-
-  const handleAdd = async () => {
-    if (!salary || !hours) return;
-
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      Alert.alert("Error", "Not logged in");
-      setLoading(false);
-      return;
-    }
-
-    const { error } = await supabase.from("profiles").upsert({
-      id: user.id,
-      monthly_salary: parseFloat(salary),
-      hours_per_week: parseFloat(hours),
-    });
-
-    if (error) {
-      Alert.alert("Error", error.message);
-    } else {
-      Alert.alert("Saved!", "Monthly salary saved.");
-      setSavedSalary(parseFloat(salary));
-      setSavedHours(parseFloat(hours));
-      setSalary("");
-      setHours("");
-    }
-
-    setLoading(false);
-  };
+      fetchProfile();
+    }, []),
+  );
 
   const handleCalculate = () => {
     const amount = parseFloat(expenseAmount);
 
     if (!savedSalary || !savedHours) {
-      Alert.alert("Error", "Please save your salary and hours first.");
+      Alert.alert(
+        "Error",
+        "Please save your salary and hours in the Profile tab first.",
+      );
       return;
     }
     if (!amount || amount <= 0) {
@@ -102,7 +72,7 @@ export default function StatsScreen() {
     const totalMinutes = Math.round(h * 60);
     const minutes = totalMinutes % 60;
     const totalHours = Math.floor(totalMinutes / 60);
-    const hoursPerDay = savedHours ? savedHours / 5 : 8;
+    const hoursPerDay = savedHours ? Math.round(savedHours / 5) : 8;
     const days = Math.floor(totalHours / hoursPerDay);
     const remainingHours = totalHours % hoursPerDay;
 
@@ -121,43 +91,6 @@ export default function StatsScreen() {
             Stats
           </ThemedText>
 
-          <ThemedText style={styles.sectionLabel}>Monthly Salary</ThemedText>
-          <TextInput
-            style={styles.input}
-            placeholder={
-              savedSalary
-                ? `Current: $${savedSalary.toLocaleString()}`
-                : "Monthly salary"
-            }
-            placeholderTextColor="#B0B4BA"
-            keyboardType="numeric"
-            value={salary}
-            onChangeText={setSalary}
-            returnKeyType="next"
-            onSubmitEditing={() => hoursRef.current?.focus()}
-          />
-          <TextInput
-            ref={hoursRef}
-            style={styles.input}
-            placeholder={
-              savedHours ? `Current: ${savedHours}h/week` : "Hours per week"
-            }
-            placeholderTextColor="#B0B4BA"
-            keyboardType="numeric"
-            value={hours}
-            onChangeText={setHours}
-            returnKeyType="done"
-          />
-          <TouchableOpacity
-            style={[styles.button, loading && { opacity: 0.6 }]}
-            onPress={handleAdd}
-            disabled={loading}
-          >
-            <ThemedText style={{ color: "white" }}>
-              {loading ? "Saving..." : "Set Monthly Salary"}
-            </ThemedText>
-          </TouchableOpacity>
-
           <ThemedView style={styles.divider} />
 
           <ThemedText style={styles.sectionLabel}>
@@ -173,7 +106,6 @@ export default function StatsScreen() {
               setExpenseAmount(v);
               setHoursNeeded(null);
             }}
-            returnKeyType="done"
           />
           <TouchableOpacity style={styles.button} onPress={handleCalculate}>
             <ThemedText style={{ color: "white" }}>Calculate</ThemedText>
@@ -280,6 +212,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     gap: Spacing.four,
+    paddingBottom: 16,
   },
   resultUnit: {
     alignItems: "center",
