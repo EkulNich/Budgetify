@@ -18,9 +18,19 @@ export default function AppTabs() {
         <Icon src={require("@/assets/images/tabIcons/home.png")} />
       </NativeTabs.Trigger>
 
+      <NativeTabs.Trigger name="stats">
+        <Label>stats</Label>
+        <Icon src={require("@/assets/images/tabIcons/stats.png")} />
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="add">
         <Label>add</Label>
         <Icon src={require("@/assets/images/tabIcons/add.png")} />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="social">
+        <Label>social</Label>
+        <Icon src={require("@/assets/images/tabIcons/social.png")} />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="profile">
