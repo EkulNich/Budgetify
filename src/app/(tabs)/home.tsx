@@ -1,13 +1,14 @@
 import { supabase } from "@/lib/supabase";
 
 import * as Device from "expo-device";
-import { Platform, StyleSheet } from "react-native";
+import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BudgetBar } from "@/components/budget-bar";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { TouchableOpacity } from "react-native";
@@ -39,7 +40,7 @@ export default function HomeScreen() {
     percentSpent: 0,
     budget: 0,
   });
-  const [recentExpenses, setRecentExpenses] = useState<
+  const [recentExpenses, setExpenses] = useState<
     {
       id: string;
       amount: number;
@@ -69,7 +70,7 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      getRecentExpenses();
+      getExpenses();
     }, []),
   );
 
@@ -109,20 +110,19 @@ export default function HomeScreen() {
     });
   };
 
-  const getRecentExpenses = async () => {
+  const getExpenses = async () => {
     // fetch the 10 last expenses for the user
     const { data, error } = await supabase
       .from("expenses")
       .select("id,amount,category,description,created_at")
-      .order("created_at", { ascending: false })
-      .limit(10);
+      .order("created_at", { ascending: false });
     if (error) {
       console.error("Failure to fetch recent expenses:", error);
       return;
     }
     // visual note inside metro
     console.log("Fetched", data?.length, "expenses");
-    if (data) setRecentExpenses(data);
+    if (data) setExpenses(data);
   };
 
   useEffect(() => {
@@ -140,14 +140,19 @@ export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.topBar}>
+        <View style={styles.topBar}>
+          <Image
+            source={require("@/assets/images/budgetify_name.png")}
+            style={styles.logo}
+            contentFit="cover"
+          />
           <TouchableOpacity
             style={styles.profileCircle}
             onPress={() => router.push("/login")}
           >
             <ThemedText style={{ color: "white" }}>LC</ThemedText>
           </TouchableOpacity>
-        </ThemedView>
+        </View>
 
         {/*<ThemedView style={styles.heroSection}>
           <Image
@@ -158,28 +163,38 @@ export default function HomeScreen() {
 
         <BudgetBar spendingLimit={stats.budget} outflow={stats.totalSpent} />
 
-        <ThemedText type="subtitle">Recent Expenses</ThemedText>
-        {recentExpenses.length === 0 ? (
-          <ThemedText type="small">No expenses yet</ThemedText>
-        ) : (
-          recentExpenses.map((expense) => (
-            <ThemedView key={expense.id} style={styles.expenseRow}>
-              <ThemedView style={{ flex: 1 }}>
-                <ThemedText themeColor="backgroundSelected">
-                  {expense.category ?? "Uncategorized"}
-                </ThemedText>
-                {expense.description && (
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {expense.description}
+        <ThemedView style={styles.expensesCard}>
+          <ScrollView
+            style={{ alignSelf: "stretch" }}
+            contentContainerStyle={{ gap: Spacing.two }}
+            showsVerticalScrollIndicator={false}
+          >
+            <ThemedText type="subtitle" themeColor="backgroundSelected">
+              Expenses
+            </ThemedText>
+            {recentExpenses.length === 0 ? (
+              <ThemedText type="small">No expenses yet</ThemedText>
+            ) : (
+              recentExpenses.map((expense) => (
+                <ThemedView key={expense.id} style={styles.expenseRow}>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText themeColor="backgroundSelected">
+                      {expense.category ?? "Uncategorized"}
+                    </ThemedText>
+                    {expense.description && (
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {expense.description}
+                      </ThemedText>
+                    )}
+                  </View>
+                  <ThemedText style={{ color: "#C0392B" }}>
+                    -${Number(expense.amount).toFixed(2)}
                   </ThemedText>
-                )}
-              </ThemedView>
-              <ThemedText style={{ color: "#C0392B" }}>
-                -${Number(expense.amount).toFixed(2)}
-              </ThemedText>
-            </ThemedView>
-          ))
-        )}
+                </ThemedView>
+              ))
+            )}
+          </ScrollView>
+        </ThemedView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -195,7 +210,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.four,
     alignItems: "center",
-    gap: Spacing.three,
+    gap: Spacing.two,
     paddingBottom: BottomTabInset + Spacing.three,
     maxWidth: MaxContentWidth,
   },
@@ -222,7 +237,16 @@ const styles = StyleSheet.create({
 
   topBar: {
     alignSelf: "stretch",
-    alignItems: "flex-end",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexDirection: "row",
+    //paddingVertical: Spacing.one,
+  },
+
+  logo: {
+    width: 200,
+    height: 80,
+    marginLeft: -25,
   },
 
   profileCircle: {
@@ -238,9 +262,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "stretch",
-    paddingVertical: Spacing.two,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    backgroundColor: "#E8F0E5",
+    borderRadius: 12,
+    borderBottomColor: "#f3f3f3",
     gap: Spacing.three,
+  },
+
+  expensesCard: {
+    flex: 1,
+    alignSelf: "stretch",
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: Spacing.three,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
 });
