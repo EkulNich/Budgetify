@@ -10,7 +10,7 @@ import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { TouchableOpacity } from "react-native";
 
 function getDevMenuHint() {
@@ -33,6 +33,22 @@ function getDevMenuHint() {
 }
 
 export default function HomeScreen() {
+  console.log("HomeScreen mounted");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      console.log("session:", session);
+      if (!session?.user) return;
+      console.log("avatar url:", session.user.user_metadata?.avatar_url);
+      setAvatarUrl(session.user.user_metadata?.avatar_url ?? null);
+    };
+    fetchUser();
+  }, []);
+
   const router = useRouter();
   useEffect(() => {
     const checkSupabase = async () => {
@@ -54,7 +70,13 @@ export default function HomeScreen() {
             style={styles.profileCircle}
             onPress={() => router.push("/login")}
           >
-            <ThemedText style={{ color: "white" }}>LC</ThemedText>
+            {avatarUrl ? (
+              <Image source={avatarUrl} style={styles.avatar} />
+            ) : (
+              <ThemedView style={styles.profileCircle}>
+                <ThemedText style={{ color: "white" }}>?</ThemedText>
+              </ThemedView>
+            )}
           </TouchableOpacity>
         </ThemedView>
 
@@ -118,5 +140,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#2D612A",
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
 });

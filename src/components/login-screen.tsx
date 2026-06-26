@@ -1,4 +1,5 @@
 import { ThemedText } from "@/components/themed-text";
+import { Ionicons } from "@expo/vector-icons";
 import {
   GoogleSignin,
   GoogleSigninButton,
@@ -7,7 +8,7 @@ import {
 } from "@react-native-google-signin/google-signin";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Platform, StyleSheet, TouchableOpacity } from "react-native";
+import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 
@@ -38,9 +39,24 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {isSignedIn ? (
-        <TouchableOpacity style={styles.button} onPress={handleSignOut}>
-          <ThemedText style={{ color: "white" }}>Sign Out</ThemedText>
-        </TouchableOpacity>
+        <View style={{ flex: 1, width: "100%" }}>
+          <TouchableOpacity
+            style={{ position: "absolute", top: 20, left: 20 }}
+            onPress={() => {
+              router.replace("/(tabs)/home");
+            }}
+          >
+            <Ionicons name="arrow-back" size={24} color="black" />
+          </TouchableOpacity>
+
+          <View
+            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+          >
+            <TouchableOpacity style={styles.button} onPress={handleSignOut}>
+              <ThemedText style={{ color: "white" }}>Sign Out</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
       ) : (
         <GoogleSigninButton
           size={GoogleSigninButton.Size.Wide}

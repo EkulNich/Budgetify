@@ -40,6 +40,19 @@ function getDevMenuHint() {
 }
 
 export default function HomeScreen() {
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const fetchUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      setAvatarUrl(user.user_metadata?.avatar_url ?? null);
+    };
+
+    fetchUser();
+  }, []);
+
   const router = useRouter();
   const [stats, setStats] = useState({
     totalSpent: 0,
@@ -256,7 +269,11 @@ export default function HomeScreen() {
               style={styles.profileCircle}
               onPress={() => router.push("/login")}
             >
-              <ThemedText style={{ color: "white" }}>LC</ThemedText>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              ) : (
+                <ThemedText style={{ color: "white" }}>?</ThemedText>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -384,6 +401,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#2D612A",
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
 
   expenseRow: {
