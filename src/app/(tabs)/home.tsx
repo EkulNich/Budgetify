@@ -1,13 +1,20 @@
+import { getRecommendations } from "@/lib/recommendations";
 import { supabase } from "@/lib/supabase";
 
 import * as Device from "expo-device";
-import { Platform, ScrollView, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BudgetBar } from "@/components/budget-bar";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { BottomTabInset, Spacing } from "@/constants/theme";
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
@@ -50,6 +57,9 @@ export default function HomeScreen() {
     }[]
   >([]);
 
+  const [recommendations, setRecommendations] = useState<string[]>([]);
+  const [tipsLoading, setTipsLoading] = useState(false);
+
   useFocusEffect(
     useCallback(() => {
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -71,6 +81,12 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       getExpenses();
+    }, []),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchTips();
     }, []),
   );
 
@@ -111,7 +127,7 @@ export default function HomeScreen() {
   };
 
   const getExpenses = async () => {
-    // fetch the 10 last expenses for the user
+    // fetch the recent expenses for the user
     const { data, error } = await supabase
       .from("expenses")
       .select("id,amount,category,description,created_at")
@@ -123,6 +139,91 @@ export default function HomeScreen() {
     // visual note inside metro
     console.log("Fetched", data?.length, "expenses");
     if (data) setExpenses(data);
+  };
+
+  const fetchTips = async () => {
+    // need profile and expensed to call Gemini
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // check cache first
+    const { data: cached } = await supabase
+      .from("ai_tips")
+      .select("tips, generated_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (cached) {
+      const ageMs = Date.now() - new Date(cached.generated_at).getTime();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      if (ageMs < oneDayMs) {
+        // Use cached tips if they are less than a day old. Skip Gemini call.
+        console.log(
+          "Using cached tips, age:",
+          Math.round(ageMs / 1000 / 60 / 60),
+          "hours",
+        );
+        setRecommendations(cached.tips);
+        return;
+      }
+      console.log("Cached tips are too old, fetching new ones.");
+    } else {
+      console.log("No cached tips found, generating first time.");
+    }
+
+    // Gemini call to get recommendations
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("monthly_salary, monthly_budget")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile) return;
+
+    //Fetch expenses directly from Supabase.
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const { data: expensesData } = await supabase
+      .from("expenses")
+      .select("amount,category")
+      .gte("created_at", startOfMonth.toISOString());
+
+    if (!expensesData) return;
+
+    setTipsLoading(true);
+    try {
+      const tips = await getRecommendations(
+        Number(profile.monthly_salary),
+        Number(profile.monthly_budget),
+        expensesData.map((e) => ({
+          amount: e.amount,
+          category: e.category,
+        })),
+      );
+      setRecommendations(tips);
+
+      // Cache the tips in Supabase for future use
+      const { error: cacheError } = await supabase.from("ai_tips").upsert(
+        {
+          user_id: user.id,
+          tips,
+          generated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" },
+      );
+      if (cacheError) {
+        console.error("Failed to cache AI tips:", cacheError);
+      }
+    } catch (e) {
+      console.error("Failed to fetch recommendations:", e);
+      setRecommendations([]);
+    } finally {
+      setTipsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -140,35 +241,64 @@ export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.topBar}>
-          <Image
-            source={require("@/assets/images/budgetify_name.png")}
-            style={styles.logo}
-            contentFit="cover"
-          />
-          <TouchableOpacity
-            style={styles.profileCircle}
-            onPress={() => router.push("/login")}
-          >
-            <ThemedText style={{ color: "white" }}>LC</ThemedText>
-          </TouchableOpacity>
-        </View>
+        <ScrollView
+          style={{ alignSelf: "stretch" }}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.topBar}>
+            <Image
+              source={require("@/assets/images/budgetify_name.png")}
+              style={styles.logo}
+              contentFit="cover"
+            />
+            <TouchableOpacity
+              style={styles.profileCircle}
+              onPress={() => router.push("/login")}
+            >
+              <ThemedText style={{ color: "white" }}>LC</ThemedText>
+            </TouchableOpacity>
+          </View>
 
-        {/*<ThemedView style={styles.heroSection}>
+          {/*<ThemedView style={styles.heroSection}>
           <Image
             source={require("@/assets/images/budgetify_name.png")}
             style={{ width: 450, height: 150, borderRadius: 0 }}
           />
         </ThemedView>*/}
 
-        <BudgetBar spendingLimit={stats.budget} outflow={stats.totalSpent} />
+          <BudgetBar spendingLimit={stats.budget} outflow={stats.totalSpent} />
 
-        <ThemedView style={styles.expensesCard}>
-          <ScrollView
+          <View style={styles.tipCard}>
+            <ThemedText type="smallBold" themeColor="backgroundSelected">
+              AI Smart Recommendations
+            </ThemedText>
+            {tipsLoading ? (
+              <ActivityIndicator color="#2D612A" />
+            ) : recommendations.length === 0 ? (
+              <ThemedText type="small" themeColor="textSecondary">
+                No recommendations available
+              </ThemedText>
+            ) : (
+              recommendations.map((tip, index) => (
+                <ThemedText
+                  key={index}
+                  type="small"
+                  themeColor="backgroundSelected"
+                  style={{ marginTop: index === 0 ? 4 : 8 }}
+                >
+                  {tip}
+                </ThemedText>
+              ))
+            )}
+          </View>
+
+          <ThemedView style={styles.expensesCard}>
+            {/* <ScrollView
             style={{ alignSelf: "stretch" }}
             contentContainerStyle={{ gap: Spacing.two }}
             showsVerticalScrollIndicator={false}
-          >
+          > */}
             <ThemedText type="subtitle" themeColor="backgroundSelected">
               Expenses
             </ThemedText>
@@ -193,8 +323,10 @@ export default function HomeScreen() {
                 </ThemedView>
               ))
             )}
-          </ScrollView>
-        </ThemedView>
+
+            {/*</ScrollView>*/}
+          </ThemedView>
+        </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -209,10 +341,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     paddingHorizontal: Spacing.four,
-    alignItems: "center",
-    gap: Spacing.two,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
   },
   heroSection: {
     alignItems: "center",
@@ -246,7 +374,7 @@ const styles = StyleSheet.create({
   logo: {
     width: 200,
     height: 80,
-    marginLeft: -25,
+    marginLeft: -10,
   },
 
   profileCircle: {
@@ -270,13 +398,35 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
 
+  scrollContent: {
+    alignSelf: "stretch",
+    gap: Spacing.four,
+    paddingBottom: BottomTabInset + Spacing.three,
+  },
+
   expensesCard: {
-    flex: 1,
+    alignSelf: "stretch",
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: Spacing.three,
+    gap: Spacing.two,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+
+  tipCard: {
     alignSelf: "stretch",
     backgroundColor: "white",
     borderRadius: 16,
     padding: Spacing.three,
     shadowColor: "#000",
+    gap: Spacing.one,
     shadowOffset: {
       width: 0,
       height: 2,
