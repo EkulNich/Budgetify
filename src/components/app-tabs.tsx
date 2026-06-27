@@ -46,8 +46,8 @@ function AndroidTabs() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: { backgroundColor: colors.background },
-        tabBarActiveTintColor: colors.text,
-        tabBarInactiveTintColor: colors.backgroundElement,
+        tabBarActiveTintColor: colors.backgroundElement,
+        tabBarInactiveTintColor: "#000000",
       }}
     >
       <Tabs.Screen
