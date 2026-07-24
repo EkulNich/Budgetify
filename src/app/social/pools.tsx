@@ -246,6 +246,7 @@ export default function PoolsScreen() {
                 placeholderTextColor={colors.textSecondary}
                 value={poolName}
                 onChangeText={setPoolName}
+                maxLength={20}
               />
               <TextInput
                 style={[

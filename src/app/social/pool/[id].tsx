@@ -13,6 +13,7 @@ import {
     Platform,
     ScrollView,
     StyleSheet,
+    Text,
     TextInput,
     TouchableOpacity,
     useColorScheme,
@@ -99,28 +100,15 @@ function SwipeableExpense({
       renderRightActions={renderRightActions}
       rightThreshold={40}
     >
-      <View
-        style={[
-          styles.expenseCard,
-          { backgroundColor: colors.backgroundElement + "15" },
-        ]}
-      >
+      <View style={[styles.expenseCard, { backgroundColor: "#2D612A15" }]}>
         <View style={styles.expenseTop}>
           <ThemedText
-            style={{
-              color: colors.backgroundElement,
-              fontWeight: "600",
-              fontSize: 15,
-            }}
+            style={{ color: "#2D612A", fontWeight: "600", fontSize: 15 }}
           >
             {expense.description}
           </ThemedText>
           <ThemedText
-            style={{
-              color: colors.backgroundElement,
-              fontWeight: "700",
-              fontSize: 15,
-            }}
+            style={{ color: "#2D612A", fontWeight: "700", fontSize: 15 }}
           >
             ${expense.amount.toFixed(2)}
           </ThemedText>
@@ -164,8 +152,10 @@ export default function PoolDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [expenseModalVisible, setExpenseModalVisible] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
+  const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [expenseAmount, setExpenseAmount] = useState("");
   const [expenseDesc, setExpenseDesc] = useState("");
+  const [newPoolName, setNewPoolName] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(
     new Set(["split"]),
   );
@@ -270,7 +260,8 @@ export default function PoolDetailScreen() {
           created_at: e.created_at,
           added_by: e.added_by,
           added_by_username:
-            profiles.find((p) => p.id === e.added_by)?.username ?? "Unknown",
+            profiles.find((p) => p.id === (e.split_between?.[0] ?? e.added_by))
+              ?.username ?? "Unknown",
           split_between: e.split_between,
           split_usernames: (e.split_between ?? []).map(
             (uid: string) =>
@@ -326,7 +317,6 @@ export default function PoolDetailScreen() {
       : [...selectedMembers];
     const splitAmount = amount / targets.length;
 
-    // Insert ONE row in group_expenses
     await supabase.from("group_expenses").insert({
       group_id: parseInt(id),
       added_by: currentUserId,
@@ -335,7 +325,6 @@ export default function PoolDetailScreen() {
       split_between: targets,
     });
 
-    // Insert personal expense for each target
     for (const userId of targets) {
       await supabase.rpc("insert_expense_for_user", {
         p_user_id: userId,
@@ -355,10 +344,8 @@ export default function PoolDetailScreen() {
   };
 
   const deleteExpense = async (expense: Expense) => {
-    // Delete the group expense row
     await supabase.from("group_expenses").delete().eq("id", expense.id);
 
-    // Delete personal expenses for all members involved
     const targets = expense.split_between ?? [expense.added_by];
     for (const userId of targets) {
       await supabase.rpc("delete_expense_for_user", {
@@ -387,6 +374,24 @@ export default function PoolDetailScreen() {
     fetchMembers();
   };
 
+  const renamePool = async () => {
+    if (!newPoolName.trim()) return;
+    const oldName = pool?.name ?? "";
+    const trimmed = newPoolName.trim();
+
+    await supabase.from("groups").update({ name: trimmed }).eq("id", id);
+
+    const { error: renameError } = await supabase.rpc("rename_group_expenses", {
+      p_old_name: oldName,
+      p_new_name: trimmed,
+    });
+    console.log("Rename expenses error:", JSON.stringify(renameError));
+
+    setPool((prev) => (prev ? { ...prev, name: trimmed } : prev));
+    setNewPoolName("");
+    setRenameModalVisible(false);
+  };
+
   const leaveGroup = async () => {
     Alert.alert("Leave Group", "Are you sure you want to leave this group?", [
       { text: "Cancel", style: "cancel" },
@@ -399,17 +404,6 @@ export default function PoolDetailScreen() {
             .delete()
             .eq("group_id", parseInt(id))
             .eq("user_id", currentUserId);
-          const { data: remaining } = await supabase
-            .from("group_members")
-            .select("user_id")
-            .eq("group_id", parseInt(id));
-          if (!remaining || remaining.length === 0) {
-            await supabase
-              .from("group_expenses")
-              .delete()
-              .eq("group_id", parseInt(id));
-            await supabase.from("groups").delete().eq("id", parseInt(id));
-          }
           router.back();
         },
       },
@@ -440,12 +434,29 @@ export default function PoolDetailScreen() {
                 ← Back
               </ThemedText>
             </TouchableOpacity>
-            <ThemedText
-              type="title"
-              style={{ color: colors.backgroundElement }}
+            <TouchableOpacity
+              onPress={() =>
+                pool?.created_by === currentUserId &&
+                setRenameModalVisible(true)
+              }
+              style={{ flex: 1, alignItems: "center" }}
+              disabled={pool?.created_by !== currentUserId}
             >
-              {pool?.name}
-            </ThemedText>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={{
+                  color: colors.backgroundElement,
+                  fontSize: 32,
+                  fontWeight: "700",
+                  textAlign: "center",
+                  textDecorationLine:
+                    pool?.created_by === currentUserId ? "underline" : "none",
+                }}
+              >
+                {pool?.name}
+              </Text>
+            </TouchableOpacity>
             <View style={{ width: 70 }} />
           </View>
 
@@ -737,6 +748,61 @@ export default function PoolDetailScreen() {
                     ) : (
                       <ThemedText style={styles.btnText}>Add</ThemedText>
                     )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
+
+          {/* Rename Modal */}
+          <Modal visible={renameModalVisible} transparent animationType="slide">
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.modalOverlay}
+            >
+              <View style={[styles.modalCard, { backgroundColor: "#fff" }]}>
+                <ThemedText
+                  style={[
+                    styles.modalTitle,
+                    { color: colors.backgroundElement },
+                  ]}
+                >
+                  Rename Pool
+                </ThemedText>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      borderColor: colors.backgroundElement,
+                      color: colors.backgroundElement,
+                    },
+                  ]}
+                  placeholder={pool?.name ?? "New name"}
+                  placeholderTextColor="#888"
+                  value={newPoolName}
+                  onChangeText={setNewPoolName}
+                  maxLength={20}
+                  autoFocus
+                />
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    style={[styles.btn, { backgroundColor: "#e0e0e0" }]}
+                    onPress={() => setRenameModalVisible(false)}
+                  >
+                    <ThemedText
+                      style={{ color: "#333", fontWeight: "600", fontSize: 14 }}
+                    >
+                      Cancel
+                    </ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.btn,
+                      { backgroundColor: colors.backgroundElement },
+                    ]}
+                    onPress={renamePool}
+                  >
+                    <ThemedText style={styles.btnText}>Save</ThemedText>
                   </TouchableOpacity>
                 </View>
               </View>
