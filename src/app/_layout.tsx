@@ -43,6 +43,9 @@ export default function TabLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" />
+        <Stack.Screen name="social/friends" />
+        <Stack.Screen name="social/pools" />
+        <Stack.Screen name="social/pool/[id]" />
       </Stack>
     </ThemeProvider>
   );

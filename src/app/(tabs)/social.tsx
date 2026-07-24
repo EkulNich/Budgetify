@@ -1,9 +1,9 @@
-import { ScrollView, StyleSheet, useColorScheme } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Colors, Spacing } from "@/constants/theme";
+import { router } from "expo-router";
+import { StyleSheet, TouchableOpacity, useColorScheme } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SocialScreen() {
   const scheme = useColorScheme();
@@ -12,17 +12,35 @@ export default function SocialScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+        <ThemedText
+          type="title"
+          style={{
+            color: colors.backgroundElement,
+            marginBottom: Spacing.four,
+          }}
         >
-          <ThemedText type="title" style={{ color: colors.backgroundElement }}>
-            Social
-          </ThemedText>
+          Social
+        </ThemedText>
 
-          <ThemedText style={styles.sectionLabel}>Coming Soon...</ThemedText>
-        </ScrollView>
+        <TouchableOpacity
+          style={[styles.banner, { backgroundColor: colors.backgroundElement }]}
+          onPress={() => router.push("/social/friends")}
+        >
+          <ThemedText style={styles.bannerTitle}>👥 Friends</ThemedText>
+          <ThemedText style={styles.bannerSub}>
+            View friends, streaks & requests
+          </ThemedText>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.banner, { backgroundColor: colors.backgroundElement }]}
+          onPress={() => router.push("/social/pools")}
+        >
+          <ThemedText style={styles.bannerTitle}>💰 Group Pools</ThemedText>
+          <ThemedText style={styles.bannerSub}>
+            Shared budgets with your friends
+          </ThemedText>
+        </TouchableOpacity>
       </SafeAreaView>
     </ThemedView>
   );
@@ -30,37 +48,12 @@ export default function SocialScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safeArea: {
-    flex: 1,
+  safeArea: { flex: 1, padding: Spacing.four, gap: Spacing.three },
+  banner: {
+    borderRadius: 16,
     padding: Spacing.four,
+    gap: Spacing.one,
   },
-  scrollContent: {
-    gap: Spacing.three,
-    paddingBottom: Spacing.four,
-  },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#888",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: Spacing.three,
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: "#2D612A",
-    padding: Spacing.three,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#ccc",
-    marginVertical: Spacing.one,
-  },
+  bannerTitle: { fontSize: 20, fontWeight: "700", color: "#fff" },
+  bannerSub: { fontSize: 14, color: "#ffffff99" },
 });

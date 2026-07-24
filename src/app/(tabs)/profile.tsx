@@ -186,6 +186,25 @@ export default function ProfileScreen() {
               {loadingSalary ? "Saving..." : "Set Monthly Salary"}
             </ThemedText>
           </TouchableOpacity>
+          <ThemedView style={styles.divider} />
+
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: "#e55" }]}
+            onPress={() => {
+              Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Sign Out",
+                  style: "destructive",
+                  onPress: async () => {
+                    await supabase.auth.signOut();
+                  },
+                },
+              ]);
+            }}
+          >
+            <ThemedText style={{ color: "white" }}>Sign Out</ThemedText>
+          </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
