@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -72,6 +73,7 @@ export default function HomeScreen() {
 
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const [tipsLoading, setTipsLoading] = useState(false);
+  const [streak, setStreak] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -100,6 +102,12 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchTips();
+    }, []),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchStreak();
     }, []),
   );
 
@@ -137,6 +145,35 @@ export default function HomeScreen() {
       percentSpent,
       budget: profile.monthly_budget,
     });
+  };
+
+  const fetchStreak = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("streak_count, last_expense_date")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile) return;
+
+    const today = new Date().toISOString().split("T")[0];
+    const yesterday = new Date(Date.now() - 86400000)
+      .toISOString()
+      .split("T")[0];
+
+    if (
+      profile.last_expense_date === today ||
+      profile.last_expense_date === yesterday
+    ) {
+      setStreak(profile.streak_count ?? 0);
+    } else {
+      setStreak(0);
+    }
   };
 
   const getExpenses = async () => {
@@ -286,6 +323,30 @@ export default function HomeScreen() {
 
           <BudgetBar spendingLimit={stats.budget} outflow={stats.totalSpent} />
 
+          <View style={styles.streakCard}>
+            <ThemedText type="smallBold" themeColor="backgroundSelected">
+              🔥 Daily Streak
+            </ThemedText>
+            <Text
+              style={{
+                fontSize: 48,
+                fontWeight: "bold",
+                color: "#2D612A",
+                lineHeight: 40,
+                paddingTop: 8,
+              }}
+            >
+              {streak}
+            </Text>
+            <ThemedText type="small" themeColor="textSecondary">
+              {streak === 0
+                ? "Log an expense to start your streak!"
+                : streak === 1
+                  ? "1 day — keep it going!"
+                  : `${streak} days in a row!`}
+            </ThemedText>
+          </View>
+
           <View style={styles.tipCard}>
             <ThemedText type="smallBold" themeColor="backgroundSelected">
               AI Smart Recommendations
@@ -423,7 +484,7 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     alignSelf: "stretch",
-    gap: Spacing.four,
+    gap: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.three,
   },
 
@@ -446,6 +507,23 @@ const styles = StyleSheet.create({
   tipCard: {
     alignSelf: "stretch",
     backgroundColor: "white",
+    borderRadius: 16,
+    padding: Spacing.three,
+    shadowColor: "#000",
+    gap: Spacing.one,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+
+  streakCard: {
+    alignSelf: "stretch",
+    backgroundColor: "white",
+    alignItems: "center",
     borderRadius: 16,
     padding: Spacing.three,
     shadowColor: "#000",
