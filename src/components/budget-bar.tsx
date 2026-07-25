@@ -15,7 +15,7 @@ const format = (n: number) => {
 export function BudgetBar({ spendingLimit, outflow, streak }: BudgetBarProps) {
   if (spendingLimit === undefined || outflow === undefined) return null;
   const remaining = spendingLimit - outflow;
-  const percent = outflow / spendingLimit;
+  const percent = spendingLimit > 0 ? outflow / spendingLimit : 0;
 
   return (
     <View style={styles.container}>

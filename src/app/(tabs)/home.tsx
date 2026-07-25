@@ -10,7 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -211,7 +211,10 @@ export default function HomeScreen() {
     const totalSpent =
       expenses?.reduce((sum, e) => sum + Number(e.amount), 0) ?? 0;
     const remaining = Number(profile.monthly_budget) - totalSpent;
-    const percentSpent = (totalSpent / Number(profile.monthly_budget)) * 100;
+    const percentSpent =
+      Number(profile.monthly_budget) > 0
+        ? (totalSpent / Number(profile.monthly_budget)) * 100
+        : 0;
     setStats({
       totalSpent,
       remaining,
