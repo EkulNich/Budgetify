@@ -9,9 +9,8 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -364,31 +363,8 @@ export default function HomeScreen() {
             <BudgetBar
               spendingLimit={stats.budget}
               outflow={stats.totalSpent}
+              streak={streak}
             />
-
-            <View style={styles.streakCard}>
-              <ThemedText type="smallBold" themeColor="backgroundSelected">
-                🔥 Daily Streak
-              </ThemedText>
-              <Text
-                style={{
-                  fontSize: 48,
-                  fontWeight: "bold",
-                  color: "#2D612A",
-                  lineHeight: 40,
-                  paddingTop: 8,
-                }}
-              >
-                {streak}
-              </Text>
-              <ThemedText type="small" themeColor="textSecondary">
-                {streak === 0
-                  ? "Log an expense to start your streak!"
-                  : streak === 1
-                    ? "1 day — keep it going!"
-                    : `${streak} days in a row!`}
-              </ThemedText>
-            </View>
 
             <View style={styles.tipCard}>
               <ThemedText type="smallBold" themeColor="backgroundSelected">
@@ -486,19 +462,6 @@ const styles = StyleSheet.create({
   tipCard: {
     alignSelf: "stretch",
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: Spacing.three,
-    shadowColor: "#000",
-    gap: Spacing.one,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  streakCard: {
-    alignSelf: "stretch",
-    backgroundColor: "white",
-    alignItems: "center",
     borderRadius: 16,
     padding: Spacing.three,
     shadowColor: "#000",
