@@ -1,0 +1,32 @@
+import { formatCurrency } from "../src/lib/format";
+import { describe, expect, test } from "@jest/globals";
+
+describe("formatCurrency", () => {
+    test("formats a small number with two decimals", () => {
+        expect(formatCurrency(5)).toBe("5.00");
+    });
+
+    test("formats a thousand with a comma", () => {
+        expect(formatCurrency(1000)).toBe("1,000.00");
+    });
+
+    test("formats a million with commas", () => {
+        expect(formatCurrency(1000000)).toBe("1,000,000.00");
+    });
+
+    test("keeps two decimal places", () => {
+        expect(formatCurrency(1234.5)).toBe("1,234.50");
+    });
+
+    test("rounds to two decimals", () => {
+        expect(formatCurrency(1234.567)).toBe("1,234.57");
+    });
+
+    test("formats zero", () => {
+        expect(formatCurrency(0)).toBe("0.00");
+    });
+
+    test("formats negative numbers", () => {
+        expect(formatCurrency(-1500)).toBe("-1,500.00");
+    });
+});
