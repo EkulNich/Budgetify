@@ -68,38 +68,6 @@ export default function AddScreen() {
       },
     ]);
 
-    const today = new Date().toISOString().split("T")[0];
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("last_expense_date, streak_count")
-      .eq("id", user.id)
-      .single();
-    let newStreak = 1;
-
-    if (profile?.last_expense_date) {
-      const lastDate = new Date(profile.last_expense_date);
-      const todayDate = new Date(today);
-      const diffDays = Math.floor(
-        (todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24),
-      );
-      if (diffDays === 0) {
-        newStreak = profile.streak_count;
-        // No change in streak
-      } else if (diffDays === 1) {
-        newStreak = (profile.streak_count || 0) + 1;
-        // Increment streak
-      }
-    }
-    if (profile?.last_expense_date !== today) {
-      await supabase
-        .from("profiles")
-        .update({
-          streak_count: newStreak,
-          last_expense_date: today,
-        })
-        .eq("id", user.id);
-    }
-
     if (error) {
       Alert.alert("Error", error.message);
     } else {
