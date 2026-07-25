@@ -20,6 +20,7 @@ type Friend = {
   username: string;
   streak_count: number;
   friendship_id: string;
+  budget_percent_used: number;
 };
 
 type PendingRequest = {
@@ -110,7 +111,7 @@ export default function FriendsScreen() {
 
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, username, streak_count")
+      .select("id, username, streak_count, budget_percent_used")
       .in("id", friendIds);
 
     if (profiles) {
@@ -120,6 +121,7 @@ export default function FriendsScreen() {
           username: p.username,
           streak_count: p.streak_count ?? 0,
           friendship_id: friendshipMap[p.id],
+          budget_percent_used: p.budget_percent_used ?? 0,
         })),
       );
     }
@@ -354,27 +356,73 @@ export default function FriendsScreen() {
                   key={friend.id}
                   style={[
                     styles.card,
-                    { backgroundColor: colors.backgroundElement + "15" },
+                    {
+                      backgroundColor: colors.backgroundElement + "15",
+                      flexDirection: "column",
+                      alignItems: "stretch",
+                    },
                   ]}
                 >
-                  <View>
-                    <ThemedText
-                      style={[styles.name, { color: colors.backgroundElement }]}
-                    >
-                      {friend.username}
-                    </ThemedText>
-                    <ThemedText
-                      style={[styles.streak, { color: colors.textSecondary }]}
-                    >
-                      🔥 {friend.streak_count} day streak
-                    </ThemedText>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.btn, { backgroundColor: "#e55" }]}
-                    onPress={() => removeFriend(friend.friendship_id)}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
                   >
-                    <ThemedText style={styles.btnText}>Remove</ThemedText>
-                  </TouchableOpacity>
+                    <View>
+                      <ThemedText
+                        style={[
+                          styles.name,
+                          { color: colors.backgroundElement },
+                        ]}
+                      >
+                        {friend.username}
+                      </ThemedText>
+                      <ThemedText
+                        style={[styles.streak, { color: colors.textSecondary }]}
+                      >
+                        🔥 {friend.streak_count} day streak
+                      </ThemedText>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.btn, { backgroundColor: "#e55" }]}
+                      onPress={() => removeFriend(friend.friendship_id)}
+                    >
+                      <ThemedText style={styles.btnText}>Remove</ThemedText>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={{ marginTop: 8 }}>
+                    <ThemedText
+                      style={{
+                        color: colors.textSecondary,
+                        fontSize: 12,
+                        marginBottom: 4,
+                      }}
+                    >
+                      Budget used: {friend.budget_percent_used}%
+                    </ThemedText>
+                    <View
+                      style={{
+                        height: 6,
+                        borderRadius: 3,
+                        backgroundColor: "#e0e0e0",
+                      }}
+                    >
+                      <View
+                        style={{
+                          height: 6,
+                          borderRadius: 3,
+                          width:
+                            `${Math.min(friend.budget_percent_used, 100)}%` as any,
+                          backgroundColor:
+                            friend.budget_percent_used > 85
+                              ? "#e55"
+                              : colors.backgroundElement,
+                        }}
+                      />
+                    </View>
+                  </View>
                 </View>
               ))
             )}
