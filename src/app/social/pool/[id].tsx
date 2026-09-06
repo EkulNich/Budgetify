@@ -10,6 +10,8 @@ import { useCurrentUser } from "@/hooks/data/use-current-user";
 import { useAcceptedFriendProfiles, usePool } from "@/hooks/data/use-pool";
 import type { PoolExpense } from "@/hooks/data/use-pool-expenses";
 import { usePoolExpenses } from "@/hooks/data/use-pool-expenses";
+import type { MemberBalance } from "@/hooks/data/use-pool-balances";
+import { usePoolBalances } from "@/hooks/data/use-pool-balances";
 import { usePoolMembers } from "@/hooks/data/use-pool-members";
 import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
 import type { CategoryKey } from "@/constants/categories";
@@ -38,6 +40,11 @@ export default function PoolDetailScreen() {
   const { members, invite, leave, refetch: refetchMembers } =
     usePoolMembers(poolId);
   const { expenses, addExpense, deleteExpense } = usePoolExpenses(poolId);
+  const {
+    balances,
+    settleUp,
+    refetch: refetchBalances,
+  } = usePoolBalances(poolId, user?.id);
   const { friends } = useAcceptedFriendProfiles(user?.id);
   const { convert } = useExchangeRates();
   const currency = pool?.currency ?? "SGD";
@@ -57,12 +64,12 @@ export default function PoolDetailScreen() {
   }) => {
     if (!user) return;
     await addExpense({ userId: user.id, ...input });
-    await refetchMembers();
+    await Promise.all([refetchMembers(), refetchBalances()]);
   };
 
   const handleDeleteExpense = async (expense: PoolExpense) => {
     await deleteExpense(expense, pool?.name ?? "Group Pool");
-    await refetchMembers();
+    await Promise.all([refetchMembers(), refetchBalances()]);
   };
 
   const handleInvite = async (friendId: string) => {
@@ -73,6 +80,27 @@ export default function PoolDetailScreen() {
     }
     await invite(friendId, pool?.pool_limit ?? 0);
     setInviteModalVisible(false);
+  };
+
+  const handleSettleUp = (balance: MemberBalance) => {
+    const amountText = formatCurrency(balance.amount, currency);
+    Alert.alert(
+      "Settle Up",
+      `Mark ${balance.username}'s ${amountText} as paid back to you?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: async () => {
+            try {
+              await settleUp(balance, currency);
+            } catch (error) {
+              Alert.alert("Error", (error as Error).message);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleLeaveGroup = () => {
@@ -151,6 +179,63 @@ export default function PoolDetailScreen() {
                 />
               </View>
             </View>
+
+            {/* Balances */}
+            {balances.length > 0 && (
+              <View style={styles.section}>
+                <ThemedText
+                  style={[styles.sectionLabel, { color: colors.backgroundElement }]}
+                >
+                  Balances
+                </ThemedText>
+                {balances.map((balance) => {
+                  const theyOweYou = balance.amount > 0;
+                  return (
+                    <View
+                      key={balance.userId}
+                      style={[
+                        styles.card,
+                        { backgroundColor: colors.backgroundElement + "15" },
+                      ]}
+                    >
+                      <View>
+                        <ThemedText
+                          style={{ color: colors.backgroundElement, fontWeight: "600" }}
+                        >
+                          {theyOweYou
+                            ? `${balance.username} owes you`
+                            : `You owe ${balance.username}`}
+                        </ThemedText>
+                        <ThemedText
+                          style={{
+                            color: theyOweYou ? "#2D612A" : "#C0392B",
+                            fontWeight: "700",
+                            fontSize: 16,
+                          }}
+                        >
+                          {formatCurrency(Math.abs(balance.amount), currency)}
+                        </ThemedText>
+                      </View>
+                      {theyOweYou && (
+                        <TouchableOpacity
+                          style={[
+                            styles.settleBtn,
+                            { borderColor: colors.backgroundElement },
+                          ]}
+                          onPress={() => handleSettleUp(balance)}
+                        >
+                          <ThemedText
+                            style={{ color: colors.backgroundElement, fontWeight: "600", fontSize: 13 }}
+                          >
+                            Settle Up
+                          </ThemedText>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
 
             {/* Members */}
             <View style={styles.section}>
@@ -290,6 +375,12 @@ const styles = StyleSheet.create({
   },
   progressBg: { height: 8, borderRadius: 4, backgroundColor: "#e0e0e0" },
   progressFill: { height: 8, borderRadius: 4 },
+  settleBtn: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+  },
   leaveBtn: {
     alignItems: "center",
     padding: Spacing.three,
