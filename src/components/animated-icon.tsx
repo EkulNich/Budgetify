@@ -35,10 +35,6 @@ export function AnimatedSplashOverlay() {
   );
 }
 
-export function AnimatedIcon() {
-  return null;
-}
-
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,

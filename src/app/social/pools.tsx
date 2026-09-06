@@ -1,38 +1,31 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Colors, Spacing } from "@/constants/theme";
-import { supabase } from "@/lib/supabase";
+import { Spacing } from "@/constants/theme";
+import { useCurrentUser } from "@/hooks/data/use-current-user";
+import { createPool, usePools } from "@/hooks/data/use-pools";
+import { useTheme } from "@/hooks/use-theme";
+import { formatCurrency } from "@/lib/format";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    useColorScheme,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type Pool = {
-  id: number;
-  name: string;
-  pool_limit: number;
-  created_by: string;
-  total_spent: number;
-};
-
 export default function PoolsScreen() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme ?? "light"];
+  const colors = useTheme();
+  const { user } = useCurrentUser();
+  const { pools, loading, refetch } = usePools(user?.id);
 
-  const [pools, setPools] = useState<Pool[]>([]);
-  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [poolName, setPoolName] = useState("");
   const [poolLimit, setPoolLimit] = useState("");
@@ -40,99 +33,26 @@ export default function PoolsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchPools();
-    }, []),
+      refetch();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.id]),
   );
 
-  const fetchPools = async () => {
-    setLoading(true);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    const { data: memberships } = await supabase
-      .from("group_members")
-      .select("group_id")
-      .eq("user_id", user.id);
-
-    if (!memberships || memberships.length === 0) {
-      setPools([]);
-      setLoading(false);
-      return;
-    }
-
-    const groupIds = memberships.map((m) => m.group_id);
-
-    const { data: groups } = await supabase
-      .from("groups")
-      .select("id, name, pool_limit, created_by")
-      .in("id", groupIds);
-
-    if (!groups) {
-      setLoading(false);
-      return;
-    }
-
-    const poolsWithSpent = await Promise.all(
-      groups.map(async (g) => {
-        const { data: expenses } = await supabase
-          .from("group_expenses")
-          .select("amount")
-          .eq("group_id", g.id);
-        const total_spent =
-          expenses?.reduce((sum, e) => sum + e.amount, 0) ?? 0;
-        return { ...g, total_spent };
-      }),
-    );
-
-    setPools(poolsWithSpent);
-    setLoading(false);
-  };
-
-  const createPool = async () => {
-    if (!poolName.trim() || !poolLimit.trim()) return;
+  const handleCreatePool = async () => {
+    if (!poolName.trim() || !poolLimit.trim() || !user) return;
     setCreating(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+    try {
+      await createPool(user.id, poolName.trim(), parseFloat(poolLimit));
+      setPoolName("");
+      setPoolLimit("");
+      setModalVisible(false);
+      refetch();
+    } catch (error) {
+      Alert.alert("Error", "Failed to create pool: " + (error as Error).message);
+    } finally {
       setCreating(false);
-      return;
     }
-
-    const { data: group, error } = await supabase
-      .from("groups")
-      .insert({
-        name: poolName.trim(),
-        created_by: user.id,
-        pool_limit: parseFloat(poolLimit),
-      })
-      .select()
-      .single();
-
-    if (error || !group) {
-      setCreating(false);
-      Alert.alert("Error", "Failed to create pool: " + error?.message);
-      return;
-    }
-
-    await supabase.from("group_members").insert({
-      group_id: group.id,
-      user_id: user.id,
-      contribution_limit: parseFloat(poolLimit),
-    });
-
-    setPoolName("");
-    setPoolLimit("");
-    setModalVisible(false);
-    setCreating(false);
-    fetchPools();
   };
 
   return (
@@ -202,15 +122,15 @@ export default function PoolsScreen() {
                       marginBottom: Spacing.two,
                     }}
                   >
-                    ${pool.total_spent.toFixed(2)} / $
-                    {pool.pool_limit.toFixed(2)}
+                    ${formatCurrency(pool.total_spent)} / $
+                    {formatCurrency(pool.pool_limit)}
                   </ThemedText>
                   <View style={styles.progressBg}>
                     <View
                       style={[
                         styles.progressFill,
                         {
-                          width: `${progress * 100}%` as any,
+                          width: `${progress * 100}%` as `${number}%`,
                           backgroundColor:
                             progress > 0.85 ? "#e55" : colors.backgroundElement,
                         },
@@ -278,7 +198,7 @@ export default function PoolsScreen() {
                     styles.btn,
                     { backgroundColor: colors.backgroundElement },
                   ]}
-                  onPress={createPool}
+                  onPress={handleCreatePool}
                   disabled={creating}
                 >
                   {creating ? (

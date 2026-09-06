@@ -1,4 +1,6 @@
 import { StyleSheet, View } from "react-native";
+import { formatCurrency } from "@/lib/format";
+import { calculatePercentSpent } from "@/lib/stats";
 import { ThemedText } from "./themed-text";
 
 type BudgetBarProps = {
@@ -7,15 +9,10 @@ type BudgetBarProps = {
   streak: number;
 };
 
-const format = (n: number) => {
-  const [whole, decimal] = n.toFixed(2).split(".");
-  return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + decimal;
-};
-
 export function BudgetBar({ spendingLimit, outflow, streak }: BudgetBarProps) {
   if (spendingLimit === undefined || outflow === undefined) return null;
   const remaining = spendingLimit - outflow;
-  const percent = spendingLimit > 0 ? outflow / spendingLimit : 0;
+  const percentSpent = calculatePercentSpent(outflow, spendingLimit);
 
   return (
     <View style={styles.container}>
@@ -23,15 +20,15 @@ export function BudgetBar({ spendingLimit, outflow, streak }: BudgetBarProps) {
         <ThemedText>AMOUNT REMAINING</ThemedText>
         <ThemedText> STREAK 🔥 : {streak}</ThemedText>
       </View>
-      <ThemedText type="title">${format(remaining)}</ThemedText>
+      <ThemedText type="title">${formatCurrency(remaining)}</ThemedText>
 
       <View style={styles.track}>
-        <View style={[styles.fill, { width: `${percent * 100}%` }]} />
+        <View style={[styles.fill, { width: `${percentSpent}%` }]} />
       </View>
 
       <View style={styles.row}>
-        <ThemedText>Budget: ${format(spendingLimit)}</ThemedText>
-        <ThemedText>{(percent * 100).toFixed(1)}% spent</ThemedText>
+        <ThemedText>Budget: ${formatCurrency(spendingLimit)}</ThemedText>
+        <ThemedText>{percentSpent.toFixed(1)}% spent</ThemedText>
       </View>
     </View>
   );

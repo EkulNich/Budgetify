@@ -1,37 +1,24 @@
-import { supabase } from "@/lib/supabase";
-import { useState } from "react";
-import {
-  Alert,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  useColorScheme,
-  View,
-} from "react-native";
+import { useRef, useState } from "react";
+import { Alert, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Colors, Spacing } from "@/constants/theme";
-import { useRef } from "react";
-
-const CATEGORIES = [
-  { key: "food", label: "Food" },
-  { key: "transport", label: "Transport" },
-  { key: "entertainment", label: "Entertainment" },
-  { key: "loans", label: "Loans" },
-  { key: "others", label: "Others" },
-];
-
-type CategoryKey = (typeof CATEGORIES)[number]["key"];
+import { PrimaryButton } from "@/components/ui/primary-button";
+import { TextField } from "@/components/ui/text-field";
+import { CATEGORIES, type CategoryKey } from "@/constants/categories";
+import { Spacing } from "@/constants/theme";
+import { useCurrentUser } from "@/hooks/data/use-current-user";
+import { insertExpense } from "@/hooks/data/use-expenses";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function AddScreen() {
+  const { user } = useCurrentUser();
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [category, setCategory] = useState<CategoryKey | null>(null);
-  const scheme = useColorScheme();
-  const colors = Colors[scheme ?? "light"];
+  const colors = useTheme();
   const descriptionRef = useRef<TextInput>(null);
 
   const handleAdd = async () => {
@@ -47,37 +34,27 @@ export default function AddScreen() {
       Alert.alert("Missing info", "Please describe the expense.");
       return;
     }
-    console.log("Adding expense:", { amount: parseFloat(amount), description });
-
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
     if (!user) {
       Alert.alert("Error", "Not logged in");
-      setLoading(false);
       return;
     }
 
-    const { error } = await supabase.from("expenses").insert([
-      {
+    setLoading(true);
+    try {
+      await insertExpense(user.id, {
         amount: parseFloat(amount),
-        description: category === "others" ? description.trim() : null,
         category,
-        user_id: user.id,
-      },
-    ]);
-
-    if (error) {
-      Alert.alert("Error", error.message);
-    } else {
+        description: category === "others" ? description.trim() : null,
+      });
       Alert.alert("Saved!", "Expense added.");
       setAmount("");
       setDescription("");
       setCategory(null);
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -111,10 +88,9 @@ export default function AddScreen() {
           })}
         </View>
 
-        <TextInput
-          style={[styles.input, { color: "black" }]}
+        <TextField
+          style={{ color: "black" }}
           placeholder="Amount"
-          placeholderTextColor="#B0B4BA"
           keyboardType="numeric"
           value={amount}
           onChangeText={setAmount}
@@ -125,20 +101,17 @@ export default function AddScreen() {
         />
 
         {category === "others" && (
-          <TextInput
+          <TextField
             ref={descriptionRef}
-            style={[styles.input, { color: "black" }]}
+            style={{ color: "black" }}
             placeholder="Describe the expense"
-            placeholderTextColor="#B0B4BA"
             value={description}
             onChangeText={setDescription}
             returnKeyType="done"
           />
         )}
 
-        <TouchableOpacity style={styles.button} onPress={handleAdd}>
-          <ThemedText style={{ color: "white" }}>Add Expense</ThemedText>
-        </TouchableOpacity>
+        <PrimaryButton label="Add Expense" onPress={handleAdd} />
       </SafeAreaView>
     </ThemedView>
   );
@@ -150,19 +123,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.four,
     gap: Spacing.three,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: Spacing.three,
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: "#2D612A",
-    padding: Spacing.three,
-    borderRadius: 8,
-    alignItems: "center",
   },
   chipRow: {
     flexDirection: "row",

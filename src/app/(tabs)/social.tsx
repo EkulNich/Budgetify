@@ -1,13 +1,13 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Colors, Spacing } from "@/constants/theme";
+import { Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
 import { router } from "expo-router";
-import { StyleSheet, TouchableOpacity, useColorScheme } from "react-native";
+import { StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SocialScreen() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme ?? "light"];
+  const colors = useTheme();
 
   return (
     <ThemedView style={styles.container}>

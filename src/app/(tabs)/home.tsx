@@ -1,12 +1,5 @@
-import { getRecommendations } from "@/lib/recommendations";
-import { supabase } from "@/lib/supabase";
-
-import * as Device from "expo-device";
 import {
   ActivityIndicator,
-  Alert,
-  Animated,
-  Platform,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -17,41 +10,20 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { BudgetBar } from "@/components/budget-bar";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { Card } from "@/components/ui/card";
+import { SwipeableRow } from "@/components/ui/swipeable-row";
+import { isPersonalCategory } from "@/constants/categories";
 import { BottomTabInset, Spacing } from "@/constants/theme";
+import { useCurrentUser } from "@/hooks/data/use-current-user";
+import type { Expense } from "@/hooks/data/use-expenses";
+import { useExpenses } from "@/hooks/data/use-expenses";
+import { useMonthlyStats } from "@/hooks/data/use-monthly-stats";
+import { useRecommendations } from "@/hooks/data/use-recommendations";
+import { getDisplayStreak } from "@/lib/streak";
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  GestureHandlerRootView,
-  Swipeable,
-} from "react-native-gesture-handler";
-
-function getDevMenuHint() {
-  if (Platform.OS === "web") {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === "android" ? "cmd+m (or ctrl+m)" : "cmd+d";
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
-
-type Expense = {
-  id: string;
-  amount: number;
-  category: string | null;
-  description: string | null;
-  created_at: string;
-};
+import { useCallback } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 function SwipeableExpenseRow({
   expense,
@@ -60,59 +32,16 @@ function SwipeableExpenseRow({
   expense: Expense;
   onDelete: (id: string) => void;
 }) {
-  const swipeableRef = useRef<Swipeable>(null);
-  const isGroupExpense =
-    expense.category !== null &&
-    !["food", "transport", "entertainment", "loans", "others"].includes(
-      expense.category.toLowerCase(),
-    );
-
-  const renderRightActions = (
-    progress: Animated.AnimatedInterpolation<number>,
-  ) => {
-    if (isGroupExpense) return null;
-    const trans = progress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [80, 0],
-    });
-    return (
-      <Animated.View
-        style={[styles.deleteAction, { transform: [{ translateX: trans }] }]}
-      >
-        <TouchableOpacity
-          style={styles.deleteBtn}
-          onPress={() => {
-            swipeableRef.current?.close();
-            Alert.alert(
-              "Delete Expense",
-              "Are you sure you want to delete this expense?",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Delete",
-                  style: "destructive",
-                  onPress: () => onDelete(expense.id),
-                },
-              ],
-            );
-          }}
-        >
-          <ThemedText
-            style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}
-          >
-            Delete
-          </ThemedText>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
+  const isGroupExpense = !isPersonalCategory(expense.category);
 
   return (
-    <Swipeable
-      ref={swipeableRef}
-      renderRightActions={isGroupExpense ? undefined : renderRightActions}
-      rightThreshold={40}
+    <SwipeableRow
       enabled={!isGroupExpense}
+      animateDeleteButton
+      deleteButtonStyle={styles.deleteBtn}
+      confirmTitle="Delete Expense"
+      confirmMessage="Are you sure you want to delete this expense?"
+      onDelete={() => onDelete(expense.id)}
     >
       <ThemedView style={styles.expenseRow}>
         <View style={{ flex: 1 }}>
@@ -129,212 +58,43 @@ function SwipeableExpenseRow({
           -${Number(expense.amount).toFixed(2)}
         </ThemedText>
       </ThemedView>
-    </Swipeable>
+    </SwipeableRow>
   );
 }
 
 export default function HomeScreen() {
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  useEffect(() => {
-    const fetchUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      setAvatarUrl(user.user_metadata?.avatar_url ?? null);
-    };
-    fetchUser();
-  }, []);
-
   const router = useRouter();
-  const [stats, setStats] = useState({
-    totalSpent: 0,
-    remaining: 0,
-    percentSpent: 0,
-    budget: 0,
-  });
-  const [recentExpenses, setExpenses] = useState<Expense[]>([]);
-  const [recommendations, setRecommendations] = useState<string[]>([]);
-  const [tipsLoading, setTipsLoading] = useState(false);
-  const [streak, setStreak] = useState(0);
+  const { user } = useCurrentUser();
+  const avatarUrl = user?.user_metadata?.avatar_url ?? null;
 
-  useFocusEffect(
-    useCallback(() => {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!session) setTimeout(() => router.replace("/login"), 100);
-      });
-    }, []),
+  const stats = useMonthlyStats(user?.id);
+  const { expenses: recentExpenses, deleteExpense, refetch: refetchExpenses } =
+    useExpenses(user?.id);
+  const { recommendations, loading: tipsLoading, refetch: refetchTips } =
+    useRecommendations(user?.id);
+
+  const today = new Date().toISOString().split("T")[0];
+  const streak = getDisplayStreak(
+    stats.profile?.last_expense_date ?? null,
+    stats.profile?.streak_count ?? 0,
+    today,
   );
 
   useFocusEffect(
     useCallback(() => {
-      getMonthlyStats();
-    }, []),
-  );
-  useFocusEffect(
-    useCallback(() => {
-      getExpenses();
-    }, []),
-  );
-  useFocusEffect(
-    useCallback(() => {
-      fetchTips();
-    }, []),
-  );
-  useFocusEffect(
-    useCallback(() => {
-      fetchStreak();
-    }, []),
+      stats.refetch();
+      refetchExpenses();
+      refetchTips();
+      // Re-fetch every time this tab regains focus (e.g. after adding an expense),
+      // not just on first mount.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.id]),
   );
 
-  const getMonthlyStats = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-    if (!profile) return;
-
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    const { data: expenses } = await supabase
-      .from("expenses")
-      .select("amount")
-      .gte("created_at", startOfMonth.toISOString());
-    const totalSpent =
-      expenses?.reduce((sum, e) => sum + Number(e.amount), 0) ?? 0;
-    const remaining = Number(profile.monthly_budget) - totalSpent;
-    const percentSpent =
-      Number(profile.monthly_budget) > 0
-        ? (totalSpent / Number(profile.monthly_budget)) * 100
-        : 0;
-    setStats({
-      totalSpent,
-      remaining,
-      percentSpent,
-      budget: profile.monthly_budget,
-    });
+  const handleDelete = async (expenseId: string) => {
+    await deleteExpense(expenseId);
+    await stats.refetch();
   };
-
-  const fetchStreak = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("streak_count, last_expense_date")
-      .eq("id", user.id)
-      .single();
-    if (!profile) return;
-
-    const today = new Date().toISOString().split("T")[0];
-    const yesterday = new Date(Date.now() - 86400000)
-      .toISOString()
-      .split("T")[0];
-
-    if (
-      profile.last_expense_date === today ||
-      profile.last_expense_date === yesterday
-    ) {
-      setStreak(profile.streak_count ?? 0);
-    } else {
-      setStreak(0);
-    }
-  };
-
-  const getExpenses = async () => {
-    const { data, error } = await supabase
-      .from("expenses")
-      .select("id,amount,category,description,created_at")
-      .order("created_at", { ascending: false });
-    if (error) {
-      console.error("Failure to fetch recent expenses:", error);
-      return;
-    }
-    if (data) setExpenses(data);
-  };
-
-  const deleteExpense = async (expenseId: string) => {
-    await supabase.from("expenses").delete().eq("id", expenseId);
-    getExpenses();
-    getMonthlyStats();
-  };
-
-  const fetchTips = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: cached } = await supabase
-      .from("ai_tips")
-      .select("tips, generated_at")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (cached) {
-      const ageMs = Date.now() - new Date(cached.generated_at).getTime();
-      if (ageMs < 24 * 60 * 60 * 1000) {
-        setRecommendations(cached.tips);
-        return;
-      }
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("monthly_salary, monthly_budget")
-      .eq("id", user.id)
-      .single();
-    if (!profile) return;
-
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-    const { data: expensesData } = await supabase
-      .from("expenses")
-      .select("amount,category")
-      .gte("created_at", startOfMonth.toISOString());
-    if (!expensesData) return;
-
-    setTipsLoading(true);
-    try {
-      const tips = await getRecommendations(
-        Number(profile.monthly_salary),
-        Number(profile.monthly_budget),
-        expensesData.map((e) => ({ amount: e.amount, category: e.category })),
-      );
-      setRecommendations(tips);
-      await supabase
-        .from("ai_tips")
-        .upsert(
-          { user_id: user.id, tips, generated_at: new Date().toISOString() },
-          { onConflict: "user_id" },
-        );
-    } catch (e) {
-      console.error("Failed to fetch recommendations:", e);
-      setRecommendations([]);
-    } finally {
-      setTipsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const checkSupabase = async () => {
-      const { data, error } = await supabase.from("categories").select("*");
-      if (error)
-        console.error("Supabase error:", JSON.stringify(error, null, 2));
-      else console.log("Data:", data);
-    };
-    checkSupabase();
-  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -369,7 +129,7 @@ export default function HomeScreen() {
               streak={streak}
             />
 
-            <View style={styles.tipCard}>
+            <Card style={styles.tipCard}>
               <ThemedText type="smallBold" themeColor="backgroundSelected">
                 AI Smart Recommendations
               </ThemedText>
@@ -391,9 +151,9 @@ export default function HomeScreen() {
                   </ThemedText>
                 ))
               )}
-            </View>
+            </Card>
 
-            <ThemedView style={styles.expensesCard}>
+            <Card style={styles.expensesCard}>
               <ThemedText type="subtitle" themeColor="backgroundSelected">
                 Expenses
               </ThemedText>
@@ -404,11 +164,11 @@ export default function HomeScreen() {
                   <SwipeableExpenseRow
                     key={expense.id}
                     expense={expense}
-                    onDelete={deleteExpense}
+                    onDelete={handleDelete}
                   />
                 ))
               )}
-            </ThemedView>
+            </Card>
           </ScrollView>
         </SafeAreaView>
       </ThemedView>
@@ -452,39 +212,13 @@ const styles = StyleSheet.create({
   },
   expensesCard: {
     alignSelf: "stretch",
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: Spacing.three,
-    gap: Spacing.two,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
   },
   tipCard: {
     alignSelf: "stretch",
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: Spacing.three,
-    shadowColor: "#000",
     gap: Spacing.one,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  deleteAction: {
-    justifyContent: "center",
-    alignItems: "flex-end",
-    marginVertical: 0,
   },
   deleteBtn: {
-    backgroundColor: "#e55",
-    justifyContent: "center",
-    alignItems: "center",
     width: 75,
-    borderRadius: 12,
     alignSelf: "stretch",
     height: "100%",
   },

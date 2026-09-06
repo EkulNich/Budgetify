@@ -10,6 +10,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ensureProfileRow } from "@/lib/profile";
 import { supabase } from "../lib/supabase";
 
 GoogleSignin.configure({
@@ -73,29 +74,11 @@ export default function LoginScreen() {
                   token: response.data.idToken,
                 });
                 if (!error && data.user) {
-                  const { data: existing } = await supabase
-                    .from("profiles")
-                    .select("id")
-                    .eq("id", data.user.id)
-                    .single();
-
-                  if (!existing) {
-                    const { error: profileError } = await supabase
-                      .from("profiles")
-                      .insert({
-                        id: data.user.id,
-                        username: data.user.user_metadata.full_name,
-                        monthly_budget: 0,
-                        monthly_salary: 0,
-                      });
-
-                    if (profileError) {
-                      console.error("Profile error:", profileError.message);
-                    }
-                  }
+                  await ensureProfileRow(data.user);
                   router.replace("/(tabs)/home");
+                } else if (error) {
+                  console.error("Sign in error:", error.message);
                 }
-                console.log(error, data);
               }
             } catch (error: any) {
               if (error.code === statusCodes.IN_PROGRESS) {

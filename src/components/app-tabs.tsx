@@ -1,11 +1,26 @@
-import { Colors } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
 import { Tabs } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
-import { Image, Platform, useColorScheme } from "react-native";
+import { Image, Platform } from "react-native";
+
+const TAB_ICONS = {
+  home: require("@/assets/images/tabIcons/home.png"),
+  stats: require("@/assets/images/tabIcons/stats.png"),
+  add: require("@/assets/images/tabIcons/add.png"),
+  social: require("@/assets/images/tabIcons/social.png"),
+  profile: require("@/assets/images/tabIcons/profile.png"),
+} as const;
+
+const TABS = [
+  { name: "home", label: "home" },
+  { name: "stats", label: "stats" },
+  { name: "add", label: "add" },
+  { name: "social", label: "social" },
+  { name: "profile", label: "profile" },
+] as const;
 
 function IOSTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme ?? "light"];
+  const colors = useTheme();
   return (
     <NativeTabs
       backgroundColor={colors.background}
@@ -13,34 +28,19 @@ function IOSTabs() {
       labelStyle={{ selected: { color: colors.text } }}
       iconColor={colors.backgroundElement}
     >
-      <NativeTabs.Trigger name="home">
-        <Label>home</Label>
-        <Icon src={require("@/assets/images/tabIcons/home.png")} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="stats">
-        <Label>stats</Label>
-        <Icon src={require("@/assets/images/tabIcons/stats.png")} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="add">
-        <Label>add</Label>
-        <Icon src={require("@/assets/images/tabIcons/add.png")} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="social">
-        <Label>social</Label>
-        <Icon src={require("@/assets/images/tabIcons/social.png")} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Label>profile</Label>
-        <Icon src={require("@/assets/images/tabIcons/profile.png")} />
-      </NativeTabs.Trigger>
+      {TABS.map((tab) => (
+        <NativeTabs.Trigger key={tab.name} name={tab.name}>
+          <Label>{tab.label}</Label>
+          <Icon src={TAB_ICONS[tab.name]} />
+        </NativeTabs.Trigger>
+      ))}
       <NativeTabs.Trigger name="login" hidden />
     </NativeTabs>
   );
 }
 
 function AndroidTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme ?? "light"];
+  const colors = useTheme();
   return (
     <Tabs
       screenOptions={{
@@ -50,66 +50,21 @@ function AndroidTabs() {
         tabBarInactiveTintColor: "#000000",
       }}
     >
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: "home",
-          tabBarIcon: ({ color }) => (
-            <Image
-              source={require("@/assets/images/tabIcons/home.png")}
-              style={{ width: 24, height: 24, tintColor: color }}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="stats"
-        options={{
-          title: "stats",
-          tabBarIcon: ({ color }) => (
-            <Image
-              source={require("@/assets/images/tabIcons/stats.png")}
-              style={{ width: 24, height: 24, tintColor: color }}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="add"
-        options={{
-          title: "add",
-          tabBarIcon: ({ color }) => (
-            <Image
-              source={require("@/assets/images/tabIcons/add.png")}
-              style={{ width: 24, height: 24, tintColor: color }}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="social"
-        options={{
-          title: "social",
-          tabBarIcon: ({ color }) => (
-            <Image
-              source={require("@/assets/images/tabIcons/social.png")}
-              style={{ width: 24, height: 24, tintColor: color }}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "profile",
-          tabBarIcon: ({ color }) => (
-            <Image
-              source={require("@/assets/images/tabIcons/profile.png")}
-              style={{ width: 24, height: 24, tintColor: color }}
-            />
-          ),
-        }}
-      />
+      {TABS.map((tab) => (
+        <Tabs.Screen
+          key={tab.name}
+          name={tab.name}
+          options={{
+            title: tab.label,
+            tabBarIcon: ({ color }) => (
+              <Image
+                source={TAB_ICONS[tab.name]}
+                style={{ width: 24, height: 24, tintColor: color }}
+              />
+            ),
+          }}
+        />
+      ))}
       <Tabs.Screen name="login" options={{ href: null }} />
     </Tabs>
   );

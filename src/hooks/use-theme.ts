@@ -6,9 +6,13 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export function useTheme() {
-  const scheme = useColorScheme();
-  const theme = scheme === 'unspecified' ? 'light' : scheme;
+/** Normalizes the platform color scheme (which can be `null`) to `'light' | 'dark'`. */
+export function useResolvedColorScheme(): 'light' | 'dark' {
+  return useColorScheme() ?? 'light';
+}
 
-  return Colors[theme];
+export function useTheme() {
+  const scheme = useResolvedColorScheme();
+
+  return Colors[scheme];
 }
