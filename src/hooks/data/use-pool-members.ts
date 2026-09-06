@@ -9,10 +9,15 @@ export type PoolMember = {
   amount_spent: number;
 };
 
-export function usePoolMembers(poolId: number) {
+export function usePoolMembers(poolId: number | null) {
   const [members, setMembers] = useState<PoolMember[]>([]);
 
   const refetch = useCallback(async () => {
+    if (!poolId) {
+      setMembers([]);
+      return;
+    }
+
     const { data: memberData } = await supabase
       .from("group_members")
       .select("user_id, contribution_limit")
@@ -59,6 +64,7 @@ export function usePoolMembers(poolId: number) {
 
   const invite = useCallback(
     async (friendId: string, contributionLimit: number) => {
+      if (!poolId) throw new Error("Cannot invite: no pool selected");
       await supabase.from("group_members").insert({
         group_id: poolId,
         user_id: friendId,

@@ -2,6 +2,7 @@ import { StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
+import { CATEGORIES } from "@/constants/categories";
 import { Spacing } from "@/constants/theme";
 import type { PoolExpense } from "@/hooks/data/use-pool-expenses";
 import { formatCurrency } from "@/lib/format";
@@ -11,8 +12,16 @@ type PoolExpenseRowProps = {
   onDelete: (expense: PoolExpense) => void;
 };
 
+function getCategoryLabelAndColor(category: string | null) {
+  const match = CATEGORIES.find((c) => c.key === category?.toLowerCase());
+  if (match) return { label: match.label, color: match.color };
+  if (category) return { label: category, color: "#888" };
+  return null;
+}
+
 export function PoolExpenseRow({ expense, onDelete }: PoolExpenseRowProps) {
   const isSplit = !!expense.split_between && expense.split_between.length > 1;
+  const category = getCategoryLabelAndColor(expense.category);
 
   return (
     <SwipeableRow
@@ -38,6 +47,15 @@ export function PoolExpenseRow({ expense, onDelete }: PoolExpenseRowProps) {
             ${formatCurrency(expense.amount)}
           </ThemedText>
         </View>
+        {category && (
+          <View
+            style={[styles.categoryBadge, { backgroundColor: category.color + "22" }]}
+          >
+            <ThemedText style={[styles.categoryBadgeText, { color: category.color }]}>
+              {category.label}
+            </ThemedText>
+          </View>
+        )}
         {isSplit ? (
           <View style={styles.splitList}>
             <ThemedText style={{ color: "#888", fontSize: 12, marginBottom: 2 }}>
@@ -68,6 +86,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   splitList: { marginTop: 4, gap: 2 },
+  categoryBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
   deleteBtn: {
     width: 80,
     marginBottom: 2,

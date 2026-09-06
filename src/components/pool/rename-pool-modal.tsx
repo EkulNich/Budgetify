@@ -10,7 +10,7 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import type { ThemeColors } from "@/constants/theme";
-import { modalStyles } from "./modal-styles";
+import { modalStyles } from "@/components/ui/modal-styles";
 
 type RenamePoolModalProps = {
   visible: boolean;

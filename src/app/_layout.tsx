@@ -15,7 +15,7 @@ import { ensureProfileRow } from "@/lib/profile";
 
 export default function TabLayout() {
   const colorScheme = useResolvedColorScheme();
-  const { user, loading } = useCurrentUser();
+  const { user } = useCurrentUser();
 
   useEffect(() => {
     const {
@@ -32,19 +32,17 @@ export default function TabLayout() {
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <StatusBar style="dark" />
       <AnimatedSplashOverlay />
-      {!loading && (
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Protected guard={!!user}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="social/friends" />
-            <Stack.Screen name="social/pools" />
-            <Stack.Screen name="social/pool/[id]" />
-          </Stack.Protected>
-          <Stack.Protected guard={!user}>
-            <Stack.Screen name="login" />
-          </Stack.Protected>
-        </Stack>
-      )}
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={!!user}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="social/friends" />
+          <Stack.Screen name="social/pools" />
+          <Stack.Screen name="social/pool/[id]" />
+        </Stack.Protected>
+        <Stack.Protected guard={!user}>
+          <Stack.Screen name="login" />
+        </Stack.Protected>
+      </Stack>
     </ThemeProvider>
   );
 }

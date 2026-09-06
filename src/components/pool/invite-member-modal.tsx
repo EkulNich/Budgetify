@@ -4,7 +4,7 @@ import { ThemedText } from "@/components/themed-text";
 import type { ThemeColors } from "@/constants/theme";
 import { Spacing } from "@/constants/theme";
 import type { PoolMember } from "@/hooks/data/use-pool-members";
-import { modalStyles } from "./modal-styles";
+import { modalStyles } from "@/components/ui/modal-styles";
 
 type InviteMemberModalProps = {
   visible: boolean;

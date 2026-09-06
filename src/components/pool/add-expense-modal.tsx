@@ -4,19 +4,19 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
-  StyleSheet,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
+import { modalStyles } from "@/components/ui/modal-styles";
+import type { CategoryKey } from "@/constants/categories";
 import type { ThemeColors } from "@/constants/theme";
-import { Spacing } from "@/constants/theme";
 import type { PoolMember } from "@/hooks/data/use-pool-members";
-import { formatCurrency } from "@/lib/format";
-import { modalStyles } from "./modal-styles";
+import {
+  EMPTY_POOL_EXPENSE_FORM,
+  PoolExpenseForm,
+} from "./pool-expense-form";
 
 type AddExpenseModalProps = {
   visible: boolean;
@@ -26,6 +26,7 @@ type AddExpenseModalProps = {
   onSubmit: (input: {
     description: string;
     amount: number;
+    category: CategoryKey;
     targets: string[];
   }) => Promise<void>;
 };
@@ -37,44 +38,28 @@ export function AddExpenseModal({
   onClose,
   onSubmit,
 }: AddExpenseModalProps) {
-  const [expenseAmount, setExpenseAmount] = useState("");
-  const [expenseDesc, setExpenseDesc] = useState("");
-  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(
-    new Set(["split"]),
-  );
+  const [form, setForm] = useState(EMPTY_POOL_EXPENSE_FORM);
   const [adding, setAdding] = useState(false);
 
-  const toggleMember = (userId: string) => {
-    setSelectedMembers((prev) => {
-      const next = new Set(prev);
-      next.delete("split");
-      if (next.has(userId)) {
-        next.delete(userId);
-        if (next.size === 0) next.add("split");
-      } else {
-        next.add(userId);
-      }
-      return next;
-    });
-  };
-
-  const toggleSplitAll = () => setSelectedMembers(new Set(["split"]));
-
   const handleAdd = async () => {
-    if (!expenseAmount.trim() || !expenseDesc.trim()) return;
+    if (!form.amount.trim() || !form.description.trim() || !form.category) {
+      return;
+    }
     setAdding(true);
 
-    const amount = parseFloat(expenseAmount);
-    const isSplitAll = selectedMembers.has("split");
+    const isSplitAll = form.selectedMembers.has("split");
     const targets = isSplitAll
       ? members.map((m) => m.user_id)
-      : [...selectedMembers];
+      : [...form.selectedMembers];
 
-    await onSubmit({ description: expenseDesc.trim(), amount, targets });
+    await onSubmit({
+      description: form.description.trim(),
+      amount: parseFloat(form.amount),
+      category: form.category,
+      targets,
+    });
 
-    setExpenseAmount("");
-    setExpenseDesc("");
-    setSelectedMembers(new Set(["split"]));
+    setForm(EMPTY_POOL_EXPENSE_FORM);
     setAdding(false);
     onClose();
   };
@@ -91,90 +76,14 @@ export function AddExpenseModal({
           >
             Add Expense
           </ThemedText>
-          <TextInput
-            style={[
-              modalStyles.input,
-              { borderColor: colors.backgroundElement, color: colors.backgroundElement },
-            ]}
-            placeholder="Description"
-            placeholderTextColor="#888"
-            value={expenseDesc}
-            onChangeText={setExpenseDesc}
+
+          <PoolExpenseForm
+            members={members}
+            colors={colors}
+            value={form}
+            onChange={setForm}
           />
-          <TextInput
-            style={[
-              modalStyles.input,
-              { borderColor: colors.backgroundElement, color: colors.backgroundElement },
-            ]}
-            placeholder="Amount ($)"
-            placeholderTextColor="#888"
-            value={expenseAmount}
-            onChangeText={setExpenseAmount}
-            keyboardType="numeric"
-          />
-          <ThemedText
-            style={{ color: colors.backgroundElement, fontWeight: "600", fontSize: 13 }}
-          >
-            Assign to:
-          </ThemedText>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ flexGrow: 0 }}
-          >
-            <View style={styles.assignRow}>
-              <TouchableOpacity
-                style={[
-                  styles.assignBtn,
-                  { borderColor: colors.backgroundElement },
-                  selectedMembers.has("split") && {
-                    backgroundColor: colors.backgroundElement,
-                  },
-                ]}
-                onPress={toggleSplitAll}
-              >
-                <ThemedText
-                  style={{
-                    color: selectedMembers.has("split") ? "#fff" : colors.backgroundElement,
-                    fontSize: 13,
-                  }}
-                >
-                  Split all
-                </ThemedText>
-              </TouchableOpacity>
-              {members.map((m) => {
-                const selected = selectedMembers.has(m.user_id);
-                return (
-                  <TouchableOpacity
-                    key={m.user_id}
-                    style={[
-                      styles.assignBtn,
-                      { borderColor: colors.backgroundElement },
-                      selected && { backgroundColor: colors.backgroundElement },
-                    ]}
-                    onPress={() => toggleMember(m.user_id)}
-                  >
-                    <ThemedText
-                      style={{
-                        color: selected ? "#fff" : colors.backgroundElement,
-                        fontSize: 13,
-                      }}
-                    >
-                      {m.username}
-                    </ThemedText>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </ScrollView>
-          {!selectedMembers.has("split") && selectedMembers.size > 0 && (
-            <ThemedText style={{ color: "#888", fontSize: 12 }}>
-              $
-              {formatCurrency(parseFloat(expenseAmount || "0") / selectedMembers.size)}{" "}
-              each ({selectedMembers.size}{" "}
-              {selectedMembers.size === 1 ? "person" : "people"})
-            </ThemedText>
-          )}
+
           <View style={modalStyles.row}>
             <TouchableOpacity
               style={[modalStyles.btn, { backgroundColor: "#e0e0e0" }]}
@@ -201,17 +110,3 @@ export function AddExpenseModal({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  assignRow: {
-    flexDirection: "row",
-    gap: Spacing.two,
-    paddingVertical: Spacing.one,
-  },
-  assignBtn: {
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-  },
-});

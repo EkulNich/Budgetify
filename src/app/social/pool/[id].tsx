@@ -11,6 +11,7 @@ import { useAcceptedFriendProfiles, usePool } from "@/hooks/data/use-pool";
 import type { PoolExpense } from "@/hooks/data/use-pool-expenses";
 import { usePoolExpenses } from "@/hooks/data/use-pool-expenses";
 import { usePoolMembers } from "@/hooks/data/use-pool-members";
+import type { CategoryKey } from "@/constants/categories";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency } from "@/lib/format";
 import { router, useLocalSearchParams } from "expo-router";
@@ -47,14 +48,11 @@ export default function PoolDetailScreen() {
   const handleAddExpense = async (input: {
     description: string;
     amount: number;
+    category: CategoryKey;
     targets: string[];
   }) => {
     if (!user) return;
-    await addExpense({
-      userId: user.id,
-      poolName: pool?.name ?? "Group Pool",
-      ...input,
-    });
+    await addExpense({ userId: user.id, ...input });
     await refetchMembers();
   };
 

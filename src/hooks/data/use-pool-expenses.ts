@@ -11,15 +11,23 @@ export type PoolExpense = {
   added_by_username: string;
   split_between: string[] | null;
   split_usernames: string[];
+  category: string | null;
 };
 
-export function usePoolExpenses(poolId: number) {
+export function usePoolExpenses(poolId: number | null) {
   const [expenses, setExpenses] = useState<PoolExpense[]>([]);
 
   const refetch = useCallback(async () => {
+    if (!poolId) {
+      setExpenses([]);
+      return;
+    }
+
     const { data: expenseData } = await supabase
       .from("group_expenses")
-      .select("id, amount, description, created_at, added_by, split_between")
+      .select(
+        "id, amount, description, created_at, added_by, split_between, category",
+      )
       .eq("group_id", poolId)
       .order("created_at", { ascending: false });
 
@@ -52,6 +60,7 @@ export function usePoolExpenses(poolId: number) {
             (uid: string) =>
               profiles.find((p) => p.id === uid)?.username ?? "Unknown",
           ),
+          category: e.category,
         })),
       );
     }
@@ -64,11 +73,12 @@ export function usePoolExpenses(poolId: number) {
   const addExpense = useCallback(
     async (input: {
       userId: string;
-      poolName: string;
+      category: string;
       amount: number;
       description: string;
       targets: string[];
     }) => {
+      if (!poolId) throw new Error("Cannot add expense: no pool selected");
       const splitAmount = input.amount / input.targets.length;
 
       await supabase.from("group_expenses").insert({
@@ -77,13 +87,14 @@ export function usePoolExpenses(poolId: number) {
         amount: input.amount,
         description: input.description,
         split_between: input.targets,
+        category: input.category,
       });
 
       for (const userId of input.targets) {
         await supabase.rpc("insert_expense_for_user", {
           p_user_id: userId,
           p_amount: splitAmount,
-          p_category: input.poolName,
+          p_category: input.category,
           p_description: input.description,
         });
       }
@@ -94,15 +105,19 @@ export function usePoolExpenses(poolId: number) {
   );
 
   const deleteExpense = useCallback(
-    async (expense: PoolExpense, poolName: string) => {
+    async (expense: PoolExpense, fallbackCategory: string) => {
       await supabase.from("group_expenses").delete().eq("id", expense.id);
+
+      // Older rows (added before categories existed) have no stored category —
+      // they were mirrored into personal expenses under the pool's name instead.
+      const category = expense.category ?? fallbackCategory;
 
       const targets = expense.split_between ?? [expense.added_by];
       for (const userId of targets) {
         await supabase.rpc("delete_expense_for_user", {
           p_user_id: userId,
           p_description: expense.description,
-          p_category: poolName,
+          p_category: category,
         });
       }
 

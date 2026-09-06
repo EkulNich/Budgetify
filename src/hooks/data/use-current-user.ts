@@ -11,11 +11,18 @@ export function useCurrentUser() {
   useEffect(() => {
     let isMounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!isMounted) return;
-      setSession(data.session);
-      setLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isMounted) return;
+        setSession(data.session);
+      })
+      .catch((error) => {
+        console.error("Failed to read auth session:", error);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
 
     const {
       data: { subscription },
