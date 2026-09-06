@@ -144,6 +144,16 @@ export default function SocialScreen() {
             </ThemedText>
           </TouchableOpacity>
 
+          <TouchableOpacity
+            style={[styles.banner, { backgroundColor: colors.backgroundElement }]}
+            onPress={() => router.push("/social/history")}
+          >
+            <ThemedText style={styles.bannerTitle}>📜 Settlement History</ThemedText>
+            <ThemedText style={styles.bannerSub}>
+              Every payment, across every pool
+            </ThemedText>
+          </TouchableOpacity>
+
           <BalanceList
             title="People Who Owe You"
             balances={owedToYou}
