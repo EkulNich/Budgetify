@@ -20,6 +20,11 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { PrimaryButton } from "@/components/ui/primary-button";
 import { SelectModal } from "@/components/ui/select-modal";
+import {
+  ReceiptReviewModal,
+  type SavedGroupEntry,
+  type SavedIndividualEntry,
+} from "@/components/receipt/receipt-review-modal";
 import { Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
 import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
@@ -34,8 +39,7 @@ import { usePools } from "@/hooks/data/use-pools";
 import { useProfile } from "@/hooks/data/use-profile";
 import { useReceiptScan } from "@/hooks/data/use-receipt-scan";
 import { useTheme } from "@/hooks/use-theme";
-import { dateToIsoTimestamp } from "@/lib/receipt";
-import { formatExpenseDate } from "@/lib/format";
+import { dateToIsoTimestamp, type ScannedReceipt } from "@/lib/receipt";
 
 export default function AddScreen() {
   const { user } = useCurrentUser();
@@ -77,7 +81,7 @@ export default function AddScreen() {
     makeEmptyPoolExpenseForm(defaultCurrency),
   );
   const [submitting, setSubmitting] = useState(false);
-  const [scannedDate, setScannedDate] = useState<string | null>(null);
+  const [reviewReceipt, setReviewReceipt] = useState<ScannedReceipt | null>(null);
   const { scanning, presentScanOptions } = useReceiptScan();
 
   // Clear whatever was in progress whenever the target (or its default currency)
@@ -85,7 +89,6 @@ export default function AddScreen() {
   // wrong destination.
   useEffect(() => {
     setForm(makeEmptyPoolExpenseForm(defaultCurrency));
-    setScannedDate(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, defaultCurrency]);
 
@@ -93,24 +96,81 @@ export default function AddScreen() {
     const result = await presentScanOptions();
     if (!result) return;
 
-    if (result.amount === null && !result.description && !result.date) {
-      Alert.alert("Couldn't read receipt", "Please enter the details manually.");
+    if (result.items.length === 0) {
+      Alert.alert(
+        "No items found",
+        "Couldn't make out individual items on that receipt — please enter the expense manually.",
+      );
       return;
     }
 
-    setForm((prev) => ({
-      ...prev,
-      amount: result.amount !== null ? String(result.amount) : prev.amount,
-      description: result.description ?? prev.description,
-    }));
-    setScannedDate(result.date);
+    setReviewReceipt(result);
+  };
 
-    if (result.amount === null) {
-      Alert.alert(
-        "Partial scan",
-        "Couldn't read the amount from that receipt — please check the details before saving.",
-      );
+  const handleSaveReviewIndividual = async (
+    entries: SavedIndividualEntry[],
+    leftoverAmount: number,
+    currency: string,
+  ) => {
+    if (!user) return;
+    const createdAt = reviewReceipt?.date
+      ? dateToIsoTimestamp(reviewReceipt.date)
+      : undefined;
+
+    for (const entry of entries) {
+      await insertExpense(user.id, {
+        amount: entry.amount,
+        currency,
+        category: entry.category,
+        description: entry.name,
+        createdAt,
+      });
     }
+    if (leftoverAmount > 0.01) {
+      await insertExpense(user.id, {
+        amount: leftoverAmount,
+        currency,
+        category: "others",
+        description: "Tax & Fees",
+        createdAt,
+      });
+    }
+    Alert.alert("Saved!", `${entries.length} expense(s) added.`);
+  };
+
+  const handleSaveReviewGroup = async (
+    entries: SavedGroupEntry[],
+    leftover: { amount: number; targets: string[] } | null,
+    currency: string,
+  ) => {
+    if (!user || !poolId) return;
+    const createdAt = reviewReceipt?.date
+      ? dateToIsoTimestamp(reviewReceipt.date)
+      : undefined;
+
+    for (const entry of entries) {
+      await addPoolExpense({
+        userId: user.id,
+        description: entry.name,
+        amount: entry.amount,
+        currency,
+        category: entry.category,
+        targets: entry.targets,
+        createdAt,
+      });
+    }
+    if (leftover) {
+      await addPoolExpense({
+        userId: user.id,
+        description: "Tax & Fees",
+        amount: leftover.amount,
+        currency,
+        category: "others",
+        targets: leftover.targets,
+        createdAt,
+      });
+    }
+    Alert.alert("Saved!", `${entries.length + (leftover ? 1 : 0)} expense(s) added.`);
   };
 
   const options = [
@@ -142,11 +202,9 @@ export default function AddScreen() {
         currency: defaultCurrency,
         category: form.category,
         description: form.category === "others" ? form.description.trim() : null,
-        createdAt: scannedDate ? dateToIsoTimestamp(scannedDate) : undefined,
       });
       Alert.alert("Saved!", "Expense added.");
       setForm(makeEmptyPoolExpenseForm(defaultCurrency));
-      setScannedDate(null);
     } catch (error) {
       Alert.alert("Error", (error as Error).message);
     } finally {
@@ -175,11 +233,9 @@ export default function AddScreen() {
         currency: defaultCurrency,
         category: form.category,
         targets,
-        createdAt: scannedDate ? dateToIsoTimestamp(scannedDate) : undefined,
       });
       Alert.alert("Saved!", "Expense added.");
       setForm(makeEmptyPoolExpenseForm(defaultCurrency));
-      setScannedDate(null);
     } catch (error) {
       Alert.alert("Error", (error as Error).message);
     } finally {
@@ -262,12 +318,6 @@ export default function AddScreen() {
                   </ThemedText>
                 )}
               </TouchableOpacity>
-
-              {scannedDate && (
-                <ThemedText type="small" style={{ color: "#888", textAlign: "center" }}>
-                  Using receipt date: {formatExpenseDate(scannedDate)}
-                </ThemedText>
-              )}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -292,6 +342,24 @@ export default function AddScreen() {
         onSelect={(next) => setForm((prev) => ({ ...prev, currency: next }))}
         onClose={() => setCurrencyPickerVisible(false)}
       />
+
+      {reviewReceipt && (
+        <ReceiptReviewModal
+          visible
+          colors={colors}
+          scannedItems={reviewReceipt.items}
+          receiptTotal={reviewReceipt.amount}
+          merchant={reviewReceipt.description}
+          date={reviewReceipt.date}
+          isGroup={isGroup}
+          members={members}
+          defaultCurrency={defaultCurrency}
+          convert={convert}
+          onClose={() => setReviewReceipt(null)}
+          onSaveIndividual={handleSaveReviewIndividual}
+          onSaveGroup={handleSaveReviewGroup}
+        />
+      )}
     </ThemedView>
   );
 }

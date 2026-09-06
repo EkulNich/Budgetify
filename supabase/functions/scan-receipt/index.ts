@@ -14,11 +14,17 @@ Deno.serve(async (req) => {
 
     {
       "amount": <the receipt's total amount, as a plain number with no currency symbols or commas>,
-      "description": "<a short merchant or item description, 40 characters or fewer>",
-      "date": "<the transaction date in YYYY-MM-DD format, or null if it isn't visible>"
+      "description": "<a short merchant name, 40 characters or fewer>",
+      "date": "<the transaction date in YYYY-MM-DD format, or null if it isn't visible>",
+      "items": [
+        { "name": "<the item's name as printed, 60 characters or fewer>", "price": <its price as a plain number> }
+      ]
     }
 
-    If you cannot find a total amount, set "amount" to null. Respond with only the JSON object.
+    List every individual line item you can read, in the order printed, excluding subtotal, tax,
+    tip, and total lines (those are already captured by "amount"). If you cannot find a total
+    amount, set "amount" to null. If you cannot make out any individual items, return "items" as
+    an empty array — do not guess. Respond with only the JSON object.
   `;
 
   const apiKey = Deno.env.get("GEMINI_API_KEY");

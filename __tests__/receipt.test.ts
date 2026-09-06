@@ -8,6 +8,7 @@ describe("parseReceiptResponse", () => {
             amount: 45.67,
             description: "Trader Joe's",
             date: "2026-06-25",
+            items: [],
         });
     });
 
@@ -17,6 +18,7 @@ describe("parseReceiptResponse", () => {
             amount: 12,
             description: "Cafe",
             date: "2026-01-05",
+            items: [],
         });
     });
 
@@ -44,6 +46,34 @@ describe("parseReceiptResponse", () => {
 
     test("throws when no JSON object is present", () => {
         expect(() => parseReceiptResponse("I could not read this receipt.")).toThrow();
+    });
+
+    test("parses a valid items array", () => {
+        const text = `{"amount": 20, "description": "Store", "date": "2026-06-25",
+            "items": [{"name": "Bananas", "price": 3.49}, {"name": "Bread", "price": 5.99}]}`;
+        expect(parseReceiptResponse(text).items).toEqual([
+            { name: "Bananas", price: 3.49 },
+            { name: "Bread", price: 5.99 },
+        ]);
+    });
+
+    test("coerces a string item price with a currency symbol", () => {
+        const text = '{"amount": 10, "description": "Store", "date": null, "items": [{"name": "Milk", "price": "$4.29"}]}';
+        expect(parseReceiptResponse(text).items[0].price).toBeCloseTo(4.29, 2);
+    });
+
+    test("drops items missing a name or a parseable price", () => {
+        const text = `{"amount": 10, "description": "Store", "date": null,
+            "items": [{"name": "", "price": 5}, {"name": "Chips"}, {"price": 3}, {"name": "Soda", "price": 2.5}]}`;
+        expect(parseReceiptResponse(text).items).toEqual([{ name: "Soda", price: 2.5 }]);
+    });
+
+    test("defaults items to an empty array when missing or malformed", () => {
+        const text = '{"amount": 10, "description": "Store", "date": null, "items": "not an array"}';
+        expect(parseReceiptResponse(text).items).toEqual([]);
+
+        const textNoItems = '{"amount": 10, "description": "Store", "date": null}';
+        expect(parseReceiptResponse(textNoItems).items).toEqual([]);
     });
 });
 
