@@ -1,4 +1,4 @@
-import { formatCurrency } from "../src/lib/format";
+import { extractDateOnly, formatCurrency, formatExpenseDate } from "../src/lib/format";
 import { describe, expect, test } from "@jest/globals";
 
 describe("formatCurrency", () => {
@@ -37,5 +37,25 @@ describe("formatCurrency", () => {
     test("differentiates currency codes for the same symbol-equivalent amount", () => {
         expect(formatCurrency(100, "USD")).toBe("USD 100.00");
         expect(formatCurrency(100, "SGD")).toBe("SGD 100.00");
+    });
+});
+
+describe("extractDateOnly", () => {
+    test("extracts the date from a Postgres timestamp with microseconds and offset", () => {
+        expect(extractDateOnly("2026-06-25 10:50:32.710308+00")).toBe("2026-06-25");
+    });
+
+    test("passes through a bare date unchanged", () => {
+        expect(extractDateOnly("2026-06-25")).toBe("2026-06-25");
+    });
+});
+
+describe("formatExpenseDate", () => {
+    test("formats a Postgres timestamp as a short display date", () => {
+        expect(formatExpenseDate("2026-06-25 10:50:32.710308+00")).toBe("Jun 25, 2026");
+    });
+
+    test("formats a bare date the same way", () => {
+        expect(formatExpenseDate("2026-06-25")).toBe("Jun 25, 2026");
     });
 });

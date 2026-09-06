@@ -12,6 +12,7 @@ import { BudgetBar } from "@/components/budget-bar";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Card } from "@/components/ui/card";
+import { CalendarFilterModal } from "@/components/ui/calendar-filter-modal";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
@@ -19,11 +20,16 @@ import type { Expense } from "@/hooks/data/use-expenses";
 import { useExpenses } from "@/hooks/data/use-expenses";
 import { useMonthlyStats } from "@/hooks/data/use-monthly-stats";
 import { useRecommendations } from "@/hooks/data/use-recommendations";
-import { formatCurrency } from "@/lib/format";
+import { useTheme } from "@/hooks/use-theme";
+import {
+  extractDateOnly,
+  formatCurrency,
+  formatExpenseDate,
+} from "@/lib/format";
 import { getDisplayStreak } from "@/lib/streak";
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 const RECENT_EXPENSE_COUNT = 5;
@@ -57,9 +63,14 @@ function SwipeableExpenseRow({
             </ThemedText>
           )}
         </View>
-        <ThemedText style={{ color: "#C0392B" }}>
-          -{formatCurrency(Number(expense.amount), expense.currency)}
-        </ThemedText>
+        <View style={{ alignItems: "flex-end" }}>
+          <ThemedText style={{ color: "#C0392B" }}>
+            -{formatCurrency(Number(expense.amount), expense.currency)}
+          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            {formatExpenseDate(expense.created_at)}
+          </ThemedText>
+        </View>
       </ThemedView>
     </SwipeableRow>
   );
@@ -82,7 +93,19 @@ export default function HomeScreen() {
     refetch: refetchTips,
   } = useRecommendations(user?.id);
   const [allExpensesVisible, setAllExpensesVisible] = useState(false);
+  const [dateFilter, setDateFilter] = useState<string | null>(null);
+  const [dateFilterPickerVisible, setDateFilterPickerVisible] = useState(false);
   const insets = useSafeAreaInsets();
+  const colors = useTheme();
+
+  const markedDates = useMemo(
+    () => new Set(recentExpenses.map((e) => extractDateOnly(e.created_at))),
+    [recentExpenses],
+  );
+
+  const filteredExpenses = dateFilter
+    ? recentExpenses.filter((e) => extractDateOnly(e.created_at) === dateFilter)
+    : recentExpenses;
 
   const today = new Date().toISOString().split("T")[0];
   const streak = getDisplayStreak(
@@ -221,15 +244,28 @@ export default function HomeScreen() {
                     </ThemedText>
                   </TouchableOpacity>
                 </View>
+
+                <TouchableOpacity
+                  style={[styles.filterButton, { borderColor: colors.backgroundElement }]}
+                  onPress={() => setDateFilterPickerVisible(true)}
+                >
+                  <ThemedText style={{ color: colors.backgroundElement }}>
+                    {dateFilter ? formatExpenseDate(dateFilter) : "All Dates"}
+                  </ThemedText>
+                  <ThemedText style={{ color: colors.backgroundElement }}>📅</ThemedText>
+                </TouchableOpacity>
+
                 <ScrollView
                   style={{ alignSelf: "stretch" }}
                   contentContainerStyle={styles.modalScrollContent}
                   showsVerticalScrollIndicator={false}
                 >
-                  {recentExpenses.length === 0 ? (
-                    <ThemedText type="small">No expenses yet</ThemedText>
+                  {filteredExpenses.length === 0 ? (
+                    <ThemedText type="small">
+                      {dateFilter ? "No expenses on this date" : "No expenses yet"}
+                    </ThemedText>
                   ) : (
-                    recentExpenses.map((expense) => (
+                    filteredExpenses.map((expense) => (
                       <SwipeableExpenseRow
                         key={expense.id}
                         expense={expense}
@@ -238,6 +274,15 @@ export default function HomeScreen() {
                     ))
                   )}
                 </ScrollView>
+
+                <CalendarFilterModal
+                  visible={dateFilterPickerVisible}
+                  selectedDate={dateFilter}
+                  markedDates={markedDates}
+                  colors={colors}
+                  onSelectDate={setDateFilter}
+                  onClose={() => setDateFilterPickerVisible(false)}
+                />
               </SafeAreaView>
             </ThemedView>
           </GestureHandlerRootView>
@@ -301,6 +346,17 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     gap: Spacing.two,
     paddingBottom: Spacing.four,
+  },
+  filterButton: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    marginBottom: Spacing.three,
   },
   tipCard: {
     alignSelf: "stretch",
