@@ -32,7 +32,10 @@ import { usePoolExpenses } from "@/hooks/data/use-pool-expenses";
 import { usePoolMembers } from "@/hooks/data/use-pool-members";
 import { usePools } from "@/hooks/data/use-pools";
 import { useProfile } from "@/hooks/data/use-profile";
+import { useReceiptScan } from "@/hooks/data/use-receipt-scan";
 import { useTheme } from "@/hooks/use-theme";
+import { dateToIsoTimestamp } from "@/lib/receipt";
+import { formatExpenseDate } from "@/lib/format";
 
 export default function AddScreen() {
   const { user } = useCurrentUser();
@@ -74,14 +77,41 @@ export default function AddScreen() {
     makeEmptyPoolExpenseForm(defaultCurrency),
   );
   const [submitting, setSubmitting] = useState(false);
+  const [scannedDate, setScannedDate] = useState<string | null>(null);
+  const { scanning, presentScanOptions } = useReceiptScan();
 
   // Clear whatever was in progress whenever the target (or its default currency)
   // changes, so a half-filled entry can't accidentally get submitted against the
   // wrong destination.
   useEffect(() => {
     setForm(makeEmptyPoolExpenseForm(defaultCurrency));
+    setScannedDate(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, defaultCurrency]);
+
+  const handleScanReceipt = async () => {
+    const result = await presentScanOptions();
+    if (!result) return;
+
+    if (result.amount === null && !result.description && !result.date) {
+      Alert.alert("Couldn't read receipt", "Please enter the details manually.");
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      amount: result.amount !== null ? String(result.amount) : prev.amount,
+      description: result.description ?? prev.description,
+    }));
+    setScannedDate(result.date);
+
+    if (result.amount === null) {
+      Alert.alert(
+        "Partial scan",
+        "Couldn't read the amount from that receipt — please check the details before saving.",
+      );
+    }
+  };
 
   const options = [
     { value: INDIVIDUAL_TARGET, label: "Individual" },
@@ -112,9 +142,11 @@ export default function AddScreen() {
         currency: defaultCurrency,
         category: form.category,
         description: form.category === "others" ? form.description.trim() : null,
+        createdAt: scannedDate ? dateToIsoTimestamp(scannedDate) : undefined,
       });
       Alert.alert("Saved!", "Expense added.");
       setForm(makeEmptyPoolExpenseForm(defaultCurrency));
+      setScannedDate(null);
     } catch (error) {
       Alert.alert("Error", (error as Error).message);
     } finally {
@@ -143,9 +175,11 @@ export default function AddScreen() {
         currency: defaultCurrency,
         category: form.category,
         targets,
+        createdAt: scannedDate ? dateToIsoTimestamp(scannedDate) : undefined,
       });
       Alert.alert("Saved!", "Expense added.");
       setForm(makeEmptyPoolExpenseForm(defaultCurrency));
+      setScannedDate(null);
     } catch (error) {
       Alert.alert("Error", (error as Error).message);
     } finally {
@@ -214,6 +248,26 @@ export default function AddScreen() {
                 loading={submitting}
                 onPress={isGroup ? handleAddGroup : handleAddIndividual}
               />
+
+              <TouchableOpacity
+                style={[styles.scanButton, { borderColor: colors.backgroundElement }]}
+                onPress={handleScanReceipt}
+                disabled={scanning}
+              >
+                {scanning ? (
+                  <ActivityIndicator color={colors.backgroundElement} />
+                ) : (
+                  <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600" }}>
+                    📷 Scan Receipt
+                  </ThemedText>
+                )}
+              </TouchableOpacity>
+
+              {scannedDate && (
+                <ThemedText type="small" style={{ color: "#888", textAlign: "center" }}>
+                  Using receipt date: {formatExpenseDate(scannedDate)}
+                </ThemedText>
+              )}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -270,5 +324,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     padding: Spacing.three,
+  },
+  scanButton: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: Spacing.three,
+    alignItems: "center",
   },
 });

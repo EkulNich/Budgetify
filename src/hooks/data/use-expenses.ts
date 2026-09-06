@@ -64,10 +64,17 @@ export async function insertExpense(
     currency: string;
     category: string;
     description: string | null;
+    /** Overrides the row's created_at (e.g. a scanned receipt's printed date). Defaults to now. */
+    createdAt?: string;
   },
 ) {
-  const { error } = await supabase
-    .from("expenses")
-    .insert([{ ...input, user_id: userId }]);
+  const { createdAt, ...rest } = input;
+  const { error } = await supabase.from("expenses").insert([
+    {
+      ...rest,
+      user_id: userId,
+      ...(createdAt ? { created_at: createdAt } : {}),
+    },
+  ]);
   if (error) throw error;
 }

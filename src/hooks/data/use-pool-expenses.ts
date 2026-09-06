@@ -81,6 +81,8 @@ export function usePoolExpenses(poolId: number | null) {
       currency: string;
       description: string;
       targets: string[];
+      /** Overrides created_at (e.g. a scanned receipt's printed date). Defaults to now. */
+      createdAt?: string;
     }) => {
       if (!poolId) throw new Error("Cannot add expense: no pool selected");
       const splitAmount = input.amount / input.targets.length;
@@ -93,6 +95,7 @@ export function usePoolExpenses(poolId: number | null) {
         split_between: input.targets,
         category: input.category,
         currency: input.currency,
+        ...(input.createdAt ? { created_at: input.createdAt } : {}),
       });
 
       for (const userId of input.targets) {
@@ -103,6 +106,7 @@ export function usePoolExpenses(poolId: number | null) {
           p_description: input.description,
           p_group_id: poolId,
           p_currency: input.currency,
+          p_created_at: input.createdAt ?? null,
         });
       }
 

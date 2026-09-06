@@ -49,7 +49,14 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to scan a receipt.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan a receipt."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
