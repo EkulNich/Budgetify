@@ -10,6 +10,7 @@ export type Profile = {
   monthly_budget: number | null;
   streak_count: number | null;
   last_expense_date: string | null;
+  currency: string;
 };
 
 /** Fetches (and lets you update) the current user's `profiles` row. */

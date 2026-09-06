@@ -1,4 +1,5 @@
-export function formatCurrency(n: number): string {
+export function formatCurrency(n: number, currencyCode?: string): string {
     const [whole, decimal] = n.toFixed(2).split(".");
-    return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + decimal;
+    const formatted = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + decimal;
+    return currencyCode ? `${currencyCode} ${formatted}` : formatted;
 }

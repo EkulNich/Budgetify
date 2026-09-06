@@ -8,6 +8,9 @@ export type Expense = {
   category: string | null;
   description: string | null;
   created_at: string;
+  currency: string;
+  /** Set when this row was mirrored from a group pool expense — null for a genuine personal expense. */
+  group_id: number | null;
 };
 
 /** All of the user's expenses, most recent first. */
@@ -25,7 +28,7 @@ export function useExpenses(userId: string | undefined) {
     setLoading(true);
     const { data, error } = await supabase
       .from("expenses")
-      .select("id,amount,category,description,created_at")
+      .select("id,amount,category,description,created_at,currency,group_id")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
@@ -53,10 +56,15 @@ export function useExpenses(userId: string | undefined) {
   return { expenses, loading, refetch, deleteExpense };
 }
 
-/** Inserts a new personal expense for the given user. */
+/** Inserts a new personal expense for the given user. `amount` must already be in `currency`. */
 export async function insertExpense(
   userId: string,
-  input: { amount: number; category: string; description: string | null },
+  input: {
+    amount: number;
+    currency: string;
+    category: string;
+    description: string | null;
+  },
 ) {
   const { error } = await supabase
     .from("expenses")

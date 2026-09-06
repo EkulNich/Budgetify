@@ -1,30 +1,52 @@
 import { useRef, useState } from "react";
-import { Alert, ScrollView, StyleSheet, TextInput } from "react-native";
+import { Alert, ScrollView, StyleSheet, TextInput, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { PrimaryButton } from "@/components/ui/primary-button";
 import { SectionLabel } from "@/components/ui/section-label";
+import { SelectModal } from "@/components/ui/select-modal";
 import { TextField } from "@/components/ui/text-field";
+import { CURRENCIES } from "@/constants/currencies";
 import { Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
 import { useProfile } from "@/hooks/data/use-profile";
 import { useTheme } from "@/hooks/use-theme";
+import { formatCurrency } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
+
+const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({
+  value: c.code,
+  label: `${c.code} — ${c.name}`,
+}));
 
 export default function ProfileScreen() {
   const { user } = useCurrentUser();
   const { profile, updateProfile } = useProfile(user?.id);
   const colors = useTheme();
+  const currency = profile?.currency ?? "SGD";
 
   const [salary, setSalary] = useState("");
   const [hours, setHours] = useState("");
   const [monthlyBudget, setMonthlyBudget] = useState("");
   const [loadingSalary, setLoadingSalary] = useState(false);
   const [loadingBudget, setLoadingBudget] = useState(false);
+  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
+  const [savingCurrency, setSavingCurrency] = useState(false);
 
   const hoursRef = useRef<TextInput>(null);
+
+  const handleChangeCurrency = async (newCurrency: string) => {
+    setSavingCurrency(true);
+    try {
+      await updateProfile({ currency: newCurrency });
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
+    } finally {
+      setSavingCurrency(false);
+    }
+  };
 
   const handleSaveSalary = async () => {
     if (!salary || !hours) return;
@@ -72,11 +94,25 @@ export default function ProfileScreen() {
             Profile
           </ThemedText>
 
+          <SectionLabel>Currency</SectionLabel>
+          <TouchableOpacity
+            style={[styles.dropdown, { borderColor: colors.backgroundElement }]}
+            onPress={() => setCurrencyPickerVisible(true)}
+            disabled={savingCurrency}
+          >
+            <ThemedText style={{ color: colors.backgroundElement }}>
+              {currency}
+            </ThemedText>
+            <ThemedText style={{ color: colors.backgroundElement }}>▾</ThemedText>
+          </TouchableOpacity>
+
+          <ThemedView style={styles.divider} />
+
           <SectionLabel>Monthly Budget</SectionLabel>
           <TextField
             placeholder={
               profile?.monthly_budget
-                ? `Current: $${profile.monthly_budget.toLocaleString()}`
+                ? `Current: ${formatCurrency(profile.monthly_budget, currency)}`
                 : "Monthly budget"
             }
             keyboardType="numeric"
@@ -96,7 +132,7 @@ export default function ProfileScreen() {
           <TextField
             placeholder={
               profile?.monthly_salary
-                ? `Current: $${profile.monthly_salary.toLocaleString()}`
+                ? `Current: ${formatCurrency(profile.monthly_salary, currency)}`
                 : "Monthly salary"
             }
             keyboardType="numeric"
@@ -142,6 +178,16 @@ export default function ProfileScreen() {
           />
         </ScrollView>
       </SafeAreaView>
+
+      <SelectModal
+        visible={currencyPickerVisible}
+        title="Currency"
+        options={CURRENCY_OPTIONS}
+        selectedValue={currency}
+        colors={colors}
+        onSelect={handleChangeCurrency}
+        onClose={() => setCurrencyPickerVisible(false)}
+      />
     </ThemedView>
   );
 }
@@ -160,5 +206,13 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#ccc",
     marginVertical: Spacing.one,
+  },
+  dropdown: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: Spacing.three,
   },
 });

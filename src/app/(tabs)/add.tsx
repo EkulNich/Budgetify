@@ -12,7 +12,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
-  EMPTY_POOL_EXPENSE_FORM,
+  CURRENCY_OPTIONS,
+  makeEmptyPoolExpenseForm,
   PoolExpenseForm,
 } from "@/components/pool/pool-expense-form";
 import { ThemedText } from "@/components/themed-text";
@@ -21,6 +22,7 @@ import { PrimaryButton } from "@/components/ui/primary-button";
 import { SelectModal } from "@/components/ui/select-modal";
 import { Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
+import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
 import { insertExpense } from "@/hooks/data/use-expenses";
 import {
   INDIVIDUAL_TARGET,
@@ -29,16 +31,20 @@ import {
 import { usePoolExpenses } from "@/hooks/data/use-pool-expenses";
 import { usePoolMembers } from "@/hooks/data/use-pool-members";
 import { usePools } from "@/hooks/data/use-pools";
+import { useProfile } from "@/hooks/data/use-profile";
 import { useTheme } from "@/hooks/use-theme";
 
 export default function AddScreen() {
   const { user } = useCurrentUser();
   const colors = useTheme();
+  const { profile } = useProfile(user?.id);
+  const { convert } = useExchangeRates();
   const { pools, loading: poolsLoading } = usePools(user?.id);
   const { target, setTarget, loaded: targetLoaded } = useLastExpenseTarget(
     user?.id,
   );
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
 
   // If the previously-selected pool no longer exists (deleted, or the user left it),
   // fall back to Individual once we actually know the current pool list.
@@ -58,18 +64,24 @@ export default function AddScreen() {
       : undefined;
   const poolId = selectedPool?.id ?? null;
   const isGroup = target !== INDIVIDUAL_TARGET;
+  const defaultCurrency =
+    (isGroup ? selectedPool?.currency : profile?.currency) ?? "SGD";
 
   const { members } = usePoolMembers(poolId);
   const { addExpense: addPoolExpense } = usePoolExpenses(poolId);
 
-  const [form, setForm] = useState(EMPTY_POOL_EXPENSE_FORM);
+  const [form, setForm] = useState(() =>
+    makeEmptyPoolExpenseForm(defaultCurrency),
+  );
   const [submitting, setSubmitting] = useState(false);
 
-  // Clear whatever was in progress whenever the target changes, so a half-filled
-  // entry can't accidentally get submitted against the wrong destination.
+  // Clear whatever was in progress whenever the target (or its default currency)
+  // changes, so a half-filled entry can't accidentally get submitted against the
+  // wrong destination.
   useEffect(() => {
-    setForm(EMPTY_POOL_EXPENSE_FORM);
-  }, [target]);
+    setForm(makeEmptyPoolExpenseForm(defaultCurrency));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, defaultCurrency]);
 
   const options = [
     { value: INDIVIDUAL_TARGET, label: "Individual" },
@@ -96,12 +108,13 @@ export default function AddScreen() {
     setSubmitting(true);
     try {
       await insertExpense(user.id, {
-        amount: parseFloat(form.amount),
+        amount: convert(parseFloat(form.amount), form.currency, defaultCurrency),
+        currency: defaultCurrency,
         category: form.category,
         description: form.category === "others" ? form.description.trim() : null,
       });
       Alert.alert("Saved!", "Expense added.");
-      setForm(EMPTY_POOL_EXPENSE_FORM);
+      setForm(makeEmptyPoolExpenseForm(defaultCurrency));
     } catch (error) {
       Alert.alert("Error", (error as Error).message);
     } finally {
@@ -126,12 +139,13 @@ export default function AddScreen() {
       await addPoolExpense({
         userId: user.id,
         description: form.description.trim(),
-        amount: parseFloat(form.amount),
+        amount: convert(parseFloat(form.amount), form.currency, defaultCurrency),
+        currency: defaultCurrency,
         category: form.category,
         targets,
       });
       Alert.alert("Saved!", "Expense added.");
-      setForm(EMPTY_POOL_EXPENSE_FORM);
+      setForm(makeEmptyPoolExpenseForm(defaultCurrency));
     } catch (error) {
       Alert.alert("Error", (error as Error).message);
     } finally {
@@ -193,6 +207,7 @@ export default function AddScreen() {
                 value={form}
                 onChange={setForm}
                 showAssignTo={isGroup}
+                onOpenCurrencyPicker={() => setCurrencyPickerVisible(true)}
               />
               <PrimaryButton
                 label={submitting ? "Adding..." : "Add Expense"}
@@ -212,6 +227,16 @@ export default function AddScreen() {
         colors={colors}
         onSelect={setTarget}
         onClose={() => setPickerVisible(false)}
+      />
+
+      <SelectModal
+        visible={currencyPickerVisible}
+        title="Currency"
+        options={CURRENCY_OPTIONS}
+        selectedValue={form.currency}
+        colors={colors}
+        onSelect={(next) => setForm((prev) => ({ ...prev, currency: next }))}
+        onClose={() => setCurrencyPickerVisible(false)}
       />
     </ThemedView>
   );

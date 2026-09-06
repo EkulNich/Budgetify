@@ -29,4 +29,13 @@ describe("formatCurrency", () => {
     test("formats negative numbers", () => {
         expect(formatCurrency(-1500)).toBe("-1,500.00");
     });
+
+    test("prefixes a currency code when given one", () => {
+        expect(formatCurrency(1234.5, "SGD")).toBe("SGD 1,234.50");
+    });
+
+    test("differentiates currency codes for the same symbol-equivalent amount", () => {
+        expect(formatCurrency(100, "USD")).toBe("USD 100.00");
+        expect(formatCurrency(100, "SGD")).toBe("SGD 100.00");
+    });
 });

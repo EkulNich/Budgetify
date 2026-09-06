@@ -8,8 +8,6 @@ export const CATEGORIES = [
 
 export type CategoryKey = (typeof CATEGORIES)[number]["key"];
 
-const PERSONAL_CATEGORY_KEYS: readonly string[] = CATEGORIES.map((c) => c.key);
-
 const STANDARD_CATEGORY_COLORS: Record<string, string> = Object.fromEntries(
   CATEGORIES.map((c) => [c.key, c.color]),
 );
@@ -29,11 +27,6 @@ export const CUSTOM_CATEGORY_COLORS = [
   "#EF6C00",
   "#42A5F5",
 ];
-
-/** Whether a category belongs to the standard personal-expense taxonomy (vs. e.g. a group pool). */
-export function isPersonalCategory(category: string | null): boolean {
-  return category !== null && PERSONAL_CATEGORY_KEYS.includes(category.toLowerCase());
-}
 
 /** Assigns each category a color: standard categories get their fixed color, others cycle through the custom palette. */
 export function getCategoryColorMap(categories: string[]): Record<string, string> {

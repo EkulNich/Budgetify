@@ -1,12 +1,15 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { SelectModal } from "@/components/ui/select-modal";
+import { CURRENCIES } from "@/constants/currencies";
 import { Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
+import { useProfile } from "@/hooks/data/use-profile";
 import { createPool, usePools } from "@/hooks/data/use-pools";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency } from "@/lib/format";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,15 +24,27 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({
+  value: c.code,
+  label: `${c.code} — ${c.name}`,
+}));
+
 export default function PoolsScreen() {
   const colors = useTheme();
   const { user } = useCurrentUser();
+  const { profile } = useProfile(user?.id);
   const { pools, loading, refetch } = usePools(user?.id);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [poolName, setPoolName] = useState("");
   const [poolLimit, setPoolLimit] = useState("");
+  const [poolCurrency, setPoolCurrency] = useState("SGD");
+  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    if (profile?.currency) setPoolCurrency(profile.currency);
+  }, [profile?.currency]);
 
   useFocusEffect(
     useCallback(() => {
@@ -43,7 +58,12 @@ export default function PoolsScreen() {
     setCreating(true);
 
     try {
-      await createPool(user.id, poolName.trim(), parseFloat(poolLimit));
+      await createPool(
+        user.id,
+        poolName.trim(),
+        parseFloat(poolLimit),
+        poolCurrency,
+      );
       setPoolName("");
       setPoolLimit("");
       setModalVisible(false);
@@ -122,8 +142,8 @@ export default function PoolsScreen() {
                       marginBottom: Spacing.two,
                     }}
                   >
-                    ${formatCurrency(pool.total_spent)} / $
-                    {formatCurrency(pool.pool_limit)}
+                    {formatCurrency(pool.total_spent, pool.currency)} /{" "}
+                    {formatCurrency(pool.pool_limit, pool.currency)}
                   </ThemedText>
                   <View style={styles.progressBg}>
                     <View
@@ -168,20 +188,32 @@ export default function PoolsScreen() {
                 onChangeText={setPoolName}
                 maxLength={20}
               />
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    borderColor: colors.backgroundElement,
-                    color: colors.backgroundElement,
-                  },
-                ]}
-                placeholder="Budget limit ($)"
-                placeholderTextColor={colors.textSecondary}
-                value={poolLimit}
-                onChangeText={setPoolLimit}
-                keyboardType="numeric"
-              />
+              <View style={styles.row}>
+                <TextInput
+                  style={[
+                    styles.input,
+                    styles.limitInput,
+                    {
+                      borderColor: colors.backgroundElement,
+                      color: colors.backgroundElement,
+                    },
+                  ]}
+                  placeholder="Budget limit"
+                  placeholderTextColor={colors.textSecondary}
+                  value={poolLimit}
+                  onChangeText={setPoolLimit}
+                  keyboardType="numeric"
+                />
+                <TouchableOpacity
+                  style={[styles.currencyButton, { borderColor: colors.backgroundElement }]}
+                  onPress={() => setCurrencyPickerVisible(true)}
+                >
+                  <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600" }}>
+                    {poolCurrency}
+                  </ThemedText>
+                  <ThemedText style={{ color: colors.backgroundElement }}>▾</ThemedText>
+                </TouchableOpacity>
+              </View>
               <View style={styles.row}>
                 <TouchableOpacity
                   style={[styles.btn, { backgroundColor: "#e0e0e0" }]}
@@ -209,6 +241,16 @@ export default function PoolsScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+
+            <SelectModal
+              visible={currencyPickerVisible}
+              title="Currency"
+              options={CURRENCY_OPTIONS}
+              selectedValue={poolCurrency}
+              colors={colors}
+              onSelect={setPoolCurrency}
+              onClose={() => setCurrencyPickerVisible(false)}
+            />
           </KeyboardAvoidingView>
         </Modal>
       </SafeAreaView>
@@ -249,6 +291,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   row: { flexDirection: "row", gap: Spacing.two },
+  limitInput: { flex: 1 },
+  currencyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: Spacing.three,
+    justifyContent: "center",
+  },
   btn: {
     flex: 1,
     padding: Spacing.three,

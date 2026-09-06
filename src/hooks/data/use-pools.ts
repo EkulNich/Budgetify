@@ -8,6 +8,7 @@ export type Pool = {
   pool_limit: number;
   created_by: string;
   total_spent: number;
+  currency: string;
 };
 
 /** The user's group pools, each with its total spent so far. */
@@ -38,7 +39,7 @@ export function usePools(userId: string | undefined) {
 
     const { data: groups } = await supabase
       .from("groups")
-      .select("id, name, pool_limit, created_by")
+      .select("id, name, pool_limit, created_by, currency")
       .in("id", groupIds);
 
     if (!groups) {
@@ -74,10 +75,11 @@ export async function createPool(
   userId: string,
   name: string,
   limit: number,
+  currency: string,
 ) {
   const { data: group, error } = await supabase
     .from("groups")
-    .insert({ name, created_by: userId, pool_limit: limit })
+    .insert({ name, created_by: userId, pool_limit: limit, currency })
     .select()
     .single();
 

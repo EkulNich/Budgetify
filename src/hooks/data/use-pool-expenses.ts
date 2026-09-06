@@ -12,6 +12,7 @@ export type PoolExpense = {
   split_between: string[] | null;
   split_usernames: string[];
   category: string | null;
+  currency: string;
 };
 
 export function usePoolExpenses(poolId: number | null) {
@@ -26,7 +27,7 @@ export function usePoolExpenses(poolId: number | null) {
     const { data: expenseData } = await supabase
       .from("group_expenses")
       .select(
-        "id, amount, description, created_at, added_by, split_between, category",
+        "id, amount, description, created_at, added_by, split_between, category, currency",
       )
       .eq("group_id", poolId)
       .order("created_at", { ascending: false });
@@ -61,6 +62,7 @@ export function usePoolExpenses(poolId: number | null) {
               profiles.find((p) => p.id === uid)?.username ?? "Unknown",
           ),
           category: e.category,
+          currency: e.currency,
         })),
       );
     }
@@ -74,7 +76,9 @@ export function usePoolExpenses(poolId: number | null) {
     async (input: {
       userId: string;
       category: string;
+      /** Already converted into the pool's currency — see `currency`. */
       amount: number;
+      currency: string;
       description: string;
       targets: string[];
     }) => {
@@ -88,6 +92,7 @@ export function usePoolExpenses(poolId: number | null) {
         description: input.description,
         split_between: input.targets,
         category: input.category,
+        currency: input.currency,
       });
 
       for (const userId of input.targets) {
@@ -96,6 +101,8 @@ export function usePoolExpenses(poolId: number | null) {
           p_amount: splitAmount,
           p_category: input.category,
           p_description: input.description,
+          p_group_id: poolId,
+          p_currency: input.currency,
         });
       }
 
@@ -118,6 +125,7 @@ export function usePoolExpenses(poolId: number | null) {
           p_user_id: userId,
           p_description: expense.description,
           p_category: category,
+          p_group_id: poolId,
         });
       }
 

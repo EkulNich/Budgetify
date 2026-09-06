@@ -7,6 +7,7 @@ export type Pool = {
   name: string;
   pool_limit: number;
   created_by: string;
+  currency: string;
 };
 
 export function usePool(poolId: number) {

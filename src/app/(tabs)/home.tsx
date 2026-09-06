@@ -12,13 +12,13 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Card } from "@/components/ui/card";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
-import { isPersonalCategory } from "@/constants/categories";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
 import type { Expense } from "@/hooks/data/use-expenses";
 import { useExpenses } from "@/hooks/data/use-expenses";
 import { useMonthlyStats } from "@/hooks/data/use-monthly-stats";
 import { useRecommendations } from "@/hooks/data/use-recommendations";
+import { formatCurrency } from "@/lib/format";
 import { getDisplayStreak } from "@/lib/streak";
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -32,7 +32,7 @@ function SwipeableExpenseRow({
   expense: Expense;
   onDelete: (id: string) => void;
 }) {
-  const isGroupExpense = !isPersonalCategory(expense.category);
+  const isGroupExpense = expense.group_id !== null;
 
   return (
     <SwipeableRow
@@ -55,7 +55,7 @@ function SwipeableExpenseRow({
           )}
         </View>
         <ThemedText style={{ color: "#C0392B" }}>
-          -${Number(expense.amount).toFixed(2)}
+          -{formatCurrency(Number(expense.amount), expense.currency)}
         </ThemedText>
       </ThemedView>
     </SwipeableRow>
@@ -68,10 +68,16 @@ export default function HomeScreen() {
   const avatarUrl = user?.user_metadata?.avatar_url ?? null;
 
   const stats = useMonthlyStats(user?.id);
-  const { expenses: recentExpenses, deleteExpense, refetch: refetchExpenses } =
-    useExpenses(user?.id);
-  const { recommendations, loading: tipsLoading, refetch: refetchTips } =
-    useRecommendations(user?.id);
+  const {
+    expenses: recentExpenses,
+    deleteExpense,
+    refetch: refetchExpenses,
+  } = useExpenses(user?.id);
+  const {
+    recommendations,
+    loading: tipsLoading,
+    refetch: refetchTips,
+  } = useRecommendations(user?.id);
 
   const today = new Date().toISOString().split("T")[0];
   const streak = getDisplayStreak(
@@ -127,6 +133,7 @@ export default function HomeScreen() {
               spendingLimit={stats.budget}
               outflow={stats.totalSpent}
               streak={streak}
+              currency={stats.currency}
             />
 
             <Card style={styles.tipCard}>

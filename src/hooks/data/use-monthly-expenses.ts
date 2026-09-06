@@ -6,6 +6,7 @@ export type MonthlyExpense = {
   amount: number;
   category: string | null;
   created_at: string;
+  currency: string;
 };
 
 export function getMonthRange(month: Date) {
@@ -31,7 +32,7 @@ export function useMonthlyExpenses(userId: string | undefined, month: Date) {
     const { start, end } = getMonthRange(month);
     const { data, error } = await supabase
       .from("expenses")
-      .select("amount, category, created_at")
+      .select("amount, category, created_at, currency")
       .eq("user_id", userId)
       .gte("created_at", start)
       .lt("created_at", end);

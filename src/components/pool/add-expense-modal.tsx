@@ -10,11 +10,13 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { modalStyles } from "@/components/ui/modal-styles";
+import { SelectModal } from "@/components/ui/select-modal";
 import type { CategoryKey } from "@/constants/categories";
 import type { ThemeColors } from "@/constants/theme";
 import type { PoolMember } from "@/hooks/data/use-pool-members";
 import {
-  EMPTY_POOL_EXPENSE_FORM,
+  CURRENCY_OPTIONS,
+  makeEmptyPoolExpenseForm,
   PoolExpenseForm,
 } from "./pool-expense-form";
 
@@ -22,10 +24,14 @@ type AddExpenseModalProps = {
   visible: boolean;
   members: PoolMember[];
   colors: ThemeColors;
+  /** The pool's currency — everything gets converted into this before saving. */
+  defaultCurrency: string;
+  convert: (amount: number, from: string, to: string) => number;
   onClose: () => void;
   onSubmit: (input: {
     description: string;
     amount: number;
+    currency: string;
     category: CategoryKey;
     targets: string[];
   }) => Promise<void>;
@@ -35,11 +41,16 @@ export function AddExpenseModal({
   visible,
   members,
   colors,
+  defaultCurrency,
+  convert,
   onClose,
   onSubmit,
 }: AddExpenseModalProps) {
-  const [form, setForm] = useState(EMPTY_POOL_EXPENSE_FORM);
+  const [form, setForm] = useState(() =>
+    makeEmptyPoolExpenseForm(defaultCurrency),
+  );
   const [adding, setAdding] = useState(false);
+  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
 
   const handleAdd = async () => {
     if (!form.amount.trim() || !form.description.trim() || !form.category) {
@@ -54,12 +65,13 @@ export function AddExpenseModal({
 
     await onSubmit({
       description: form.description.trim(),
-      amount: parseFloat(form.amount),
+      amount: convert(parseFloat(form.amount), form.currency, defaultCurrency),
+      currency: defaultCurrency,
       category: form.category,
       targets,
     });
 
-    setForm(EMPTY_POOL_EXPENSE_FORM);
+    setForm(makeEmptyPoolExpenseForm(defaultCurrency));
     setAdding(false);
     onClose();
   };
@@ -82,6 +94,7 @@ export function AddExpenseModal({
             colors={colors}
             value={form}
             onChange={setForm}
+            onOpenCurrencyPicker={() => setCurrencyPickerVisible(true)}
           />
 
           <View style={modalStyles.row}>
@@ -106,6 +119,16 @@ export function AddExpenseModal({
             </TouchableOpacity>
           </View>
         </View>
+
+        <SelectModal
+          visible={currencyPickerVisible}
+          title="Currency"
+          options={CURRENCY_OPTIONS}
+          selectedValue={form.currency}
+          colors={colors}
+          onSelect={(next) => setForm((prev) => ({ ...prev, currency: next }))}
+          onClose={() => setCurrencyPickerVisible(false)}
+        />
       </KeyboardAvoidingView>
     </Modal>
   );

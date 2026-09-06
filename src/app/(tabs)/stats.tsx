@@ -17,6 +17,7 @@ import { SectionLabel } from "@/components/ui/section-label";
 import { getCategoryColorMap } from "@/constants/categories";
 import { Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
+import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
 import { useMonthlyExpenses } from "@/hooks/data/use-monthly-expenses";
 import { useProfile } from "@/hooks/data/use-profile";
 import { formatCurrency } from "@/lib/format";
@@ -33,6 +34,8 @@ const formatMonth = (month: Date) =>
 export default function StatsScreen() {
   const { user } = useCurrentUser();
   const { profile } = useProfile(user?.id);
+  const { convert } = useExchangeRates();
+  const currency = profile?.currency ?? "SGD";
   const [selectedMonth, setSelectedMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
@@ -44,7 +47,9 @@ export default function StatsScreen() {
 
     for (const expense of expenses) {
       const key = expense.category ?? "others";
-      const amount = Number(expense.amount) || 0;
+      // Almost always already in `currency` (the common case); only rows from
+      // before a currency change need converting.
+      const amount = convert(Number(expense.amount) || 0, expense.currency, currency);
       totals[key] = (totals[key] ?? 0) + amount;
     }
 
@@ -56,7 +61,7 @@ export default function StatsScreen() {
       value,
       color: categoryColorMap[label],
     }));
-  }, [expenses]);
+  }, [expenses, convert, currency]);
 
   const moveMonth = (difference: number) => {
     setSelectedMonth(
@@ -143,7 +148,7 @@ export default function StatsScreen() {
                             {` (${percentage}%)`}
                           </ThemedText>
                           <ThemedText style={styles.legendAmount}>
-                            ${formatCurrency(item.value)}
+                            {formatCurrency(item.value, currency)}
                           </ThemedText>
                         </View>
                       );
@@ -158,7 +163,7 @@ export default function StatsScreen() {
                       <ThemedText
                         style={[styles.legendAmount, styles.totalText]}
                       >
-                        ${formatCurrency(totalSpent)}
+                        {formatCurrency(totalSpent, currency)}
                       </ThemedText>
                     </View>
                   </View>
@@ -245,7 +250,7 @@ const styles = StyleSheet.create({
     color: TEXT_GREY,
   },
   legendAmount: {
-    width: 88,
+    width: 110,
     textAlign: "right",
     fontSize: 13,
     fontWeight: "600",

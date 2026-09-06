@@ -44,7 +44,7 @@ export function PoolExpenseRow({ expense, onDelete }: PoolExpenseRowProps) {
           <ThemedText
             style={{ color: "#2D612A", fontWeight: "700", fontSize: 15 }}
           >
-            ${formatCurrency(expense.amount)}
+            {formatCurrency(expense.amount, expense.currency)}
           </ThemedText>
         </View>
         {category && (
@@ -63,8 +63,11 @@ export function PoolExpenseRow({ expense, onDelete }: PoolExpenseRowProps) {
             </ThemedText>
             {expense.split_usernames.map((u, i) => (
               <ThemedText key={i} style={{ color: "#888", fontSize: 12 }}>
-                • {u} — $
-                {formatCurrency(expense.amount / expense.split_between!.length)}
+                • {u} —{" "}
+                {formatCurrency(
+                  expense.amount / expense.split_between!.length,
+                  expense.currency,
+                )}
               </ThemedText>
             ))}
           </View>

@@ -7,9 +7,10 @@ type BudgetBarProps = {
   spendingLimit: number;
   outflow: number;
   streak: number;
+  currency: string;
 };
 
-export function BudgetBar({ spendingLimit, outflow, streak }: BudgetBarProps) {
+export function BudgetBar({ spendingLimit, outflow, streak, currency }: BudgetBarProps) {
   if (spendingLimit === undefined || outflow === undefined) return null;
   const remaining = spendingLimit - outflow;
   const percentSpent = calculatePercentSpent(outflow, spendingLimit);
@@ -20,14 +21,14 @@ export function BudgetBar({ spendingLimit, outflow, streak }: BudgetBarProps) {
         <ThemedText>AMOUNT REMAINING</ThemedText>
         <ThemedText> STREAK 🔥 : {streak}</ThemedText>
       </View>
-      <ThemedText type="title">${formatCurrency(remaining)}</ThemedText>
+      <ThemedText type="title">{formatCurrency(remaining, currency)}</ThemedText>
 
       <View style={styles.track}>
         <View style={[styles.fill, { width: `${percentSpent}%` }]} />
       </View>
 
       <View style={styles.row}>
-        <ThemedText>Budget: ${formatCurrency(spendingLimit)}</ThemedText>
+        <ThemedText>Budget: {formatCurrency(spendingLimit, currency)}</ThemedText>
         <ThemedText>{percentSpent.toFixed(1)}% spent</ThemedText>
       </View>
     </View>

@@ -1,7 +1,9 @@
 import { ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
+import type { SelectOption } from "@/components/ui/select-modal";
 import { CATEGORIES, type CategoryKey } from "@/constants/categories";
+import { CURRENCIES } from "@/constants/currencies";
 import type { ThemeColors } from "@/constants/theme";
 import { Spacing } from "@/constants/theme";
 import type { PoolMember } from "@/hooks/data/use-pool-members";
@@ -10,16 +12,28 @@ import { formatCurrency } from "@/lib/format";
 export type PoolExpenseFormValue = {
   description: string;
   amount: string;
+  currency: string;
   category: CategoryKey | null;
   selectedMembers: Set<string>;
 };
 
-export const EMPTY_POOL_EXPENSE_FORM: PoolExpenseFormValue = {
-  description: "",
-  amount: "",
-  category: null,
-  selectedMembers: new Set(["split"]),
-};
+/** An empty form, defaulting its currency to the relevant profile/pool default. */
+export function makeEmptyPoolExpenseForm(
+  defaultCurrency: string,
+): PoolExpenseFormValue {
+  return {
+    description: "",
+    amount: "",
+    currency: defaultCurrency,
+    category: null,
+    selectedMembers: new Set(["split"]),
+  };
+}
+
+export const CURRENCY_OPTIONS: SelectOption[] = CURRENCIES.map((c) => ({
+  value: c.code,
+  label: `${c.code} — ${c.name}`,
+}));
 
 type PoolExpenseFormProps = {
   members: PoolMember[];
@@ -28,12 +42,20 @@ type PoolExpenseFormProps = {
   onChange: (value: PoolExpenseFormValue) => void;
   /** Shows the "assign to" split picker. Off for a personal (non-group) expense. */
   showAssignTo?: boolean;
+  /**
+   * Opens the currency picker. Rendering the actual picker is left to the
+   * caller (see `CURRENCY_OPTIONS`) — it must live inside the same full-screen
+   * container as any wrapping `Modal`, not nested inside this form's own
+   * (much smaller) layout box, or it won't cover the screen correctly.
+   */
+  onOpenCurrencyPicker: () => void;
 };
 
 /**
  * The one expense-entry form used everywhere an expense is added — personal or
  * group-pool — so the layout, spacing, and chip styling are always identical.
- * Field order: category, description, amount, then (for a group) who it's split between.
+ * Field order: category, description, amount (+ currency), then (for a group)
+ * who it's split between.
  */
 export function PoolExpenseForm({
   members,
@@ -41,8 +63,9 @@ export function PoolExpenseForm({
   value,
   onChange,
   showAssignTo = true,
+  onOpenCurrencyPicker,
 }: PoolExpenseFormProps) {
-  const { description, amount, category, selectedMembers } = value;
+  const { description, amount, currency, category, selectedMembers } = value;
 
   const toggleMember = (userId: string) => {
     const next = new Set(selectedMembers);
@@ -105,17 +128,29 @@ export function PoolExpenseForm({
         onChangeText={(text) => onChange({ ...value, description: text })}
       />
 
-      <TextInput
-        style={[
-          styles.input,
-          { borderColor: colors.backgroundElement, color: colors.backgroundElement },
-        ]}
-        placeholder="Amount ($)"
-        placeholderTextColor="#888"
-        value={amount}
-        onChangeText={(text) => onChange({ ...value, amount: text })}
-        keyboardType="numeric"
-      />
+      <View style={styles.amountRow}>
+        <TextInput
+          style={[
+            styles.input,
+            styles.amountInput,
+            { borderColor: colors.backgroundElement, color: colors.backgroundElement },
+          ]}
+          placeholder="Amount"
+          placeholderTextColor="#888"
+          value={amount}
+          onChangeText={(text) => onChange({ ...value, amount: text })}
+          keyboardType="numeric"
+        />
+        <TouchableOpacity
+          style={[styles.currencyButton, { borderColor: colors.backgroundElement }]}
+          onPress={onOpenCurrencyPicker}
+        >
+          <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600" }}>
+            {currency}
+          </ThemedText>
+          <ThemedText style={{ color: colors.backgroundElement }}>▾</ThemedText>
+        </TouchableOpacity>
+      </View>
 
       {showAssignTo && (
         <View>
@@ -176,8 +211,12 @@ export function PoolExpenseForm({
           </ScrollView>
           {!selectedMembers.has("split") && selectedMembers.size > 0 && (
             <ThemedText style={{ color: "#888", fontSize: 12 }}>
-              ${formatCurrency(parseFloat(amount || "0") / selectedMembers.size)} each (
-              {selectedMembers.size} {selectedMembers.size === 1 ? "person" : "people"})
+              {formatCurrency(
+                parseFloat(amount || "0") / selectedMembers.size,
+                currency,
+              )}{" "}
+              each ({selectedMembers.size}{" "}
+              {selectedMembers.size === 1 ? "person" : "people"})
             </ThemedText>
           )}
         </View>
@@ -200,6 +239,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: Spacing.three,
     fontSize: 16,
+  },
+  amountRow: {
+    flexDirection: "row",
+    gap: Spacing.two,
+  },
+  amountInput: {
+    flex: 1,
+  },
+  currencyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: Spacing.three,
+    justifyContent: "center",
   },
   chipRow: {
     flexDirection: "row",

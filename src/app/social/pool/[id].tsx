@@ -11,6 +11,7 @@ import { useAcceptedFriendProfiles, usePool } from "@/hooks/data/use-pool";
 import type { PoolExpense } from "@/hooks/data/use-pool-expenses";
 import { usePoolExpenses } from "@/hooks/data/use-pool-expenses";
 import { usePoolMembers } from "@/hooks/data/use-pool-members";
+import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
 import type { CategoryKey } from "@/constants/categories";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency } from "@/lib/format";
@@ -38,6 +39,8 @@ export default function PoolDetailScreen() {
     usePoolMembers(poolId);
   const { expenses, addExpense, deleteExpense } = usePoolExpenses(poolId);
   const { friends } = useAcceptedFriendProfiles(user?.id);
+  const { convert } = useExchangeRates();
+  const currency = pool?.currency ?? "SGD";
 
   const [expenseModalVisible, setExpenseModalVisible] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
@@ -48,6 +51,7 @@ export default function PoolDetailScreen() {
   const handleAddExpense = async (input: {
     description: string;
     amount: number;
+    currency: string;
     category: CategoryKey;
     targets: string[];
   }) => {
@@ -127,11 +131,11 @@ export default function PoolDetailScreen() {
                     fontWeight: "700",
                   }}
                 >
-                  ${formatCurrency(totalSpent)}
+                  {formatCurrency(totalSpent, currency)}
                 </ThemedText>
                 <ThemedText style={{ color: "#888", fontSize: 16 }}>
                   {" "}
-                  / ${pool ? formatCurrency(pool.pool_limit) : "0.00"}
+                  / {pool ? formatCurrency(pool.pool_limit, currency) : "0.00"}
                 </ThemedText>
               </View>
               <View style={[styles.progressBg, { marginTop: Spacing.two }]}>
@@ -180,7 +184,7 @@ export default function PoolDetailScreen() {
                     {m.username}
                   </ThemedText>
                   <ThemedText style={{ color: "#888", fontSize: 13 }}>
-                    Spent: ${formatCurrency(m.amount_spent)}
+                    Spent: {formatCurrency(m.amount_spent, currency)}
                   </ThemedText>
                 </View>
               ))}
@@ -227,6 +231,8 @@ export default function PoolDetailScreen() {
             visible={expenseModalVisible}
             members={members}
             colors={colors}
+            defaultCurrency={currency}
+            convert={convert}
             onClose={() => setExpenseModalVisible(false)}
             onSubmit={handleAddExpense}
           />
