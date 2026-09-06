@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
+  LayoutChangeEvent,
   Platform,
   ScrollView,
   StyleSheet,
@@ -10,9 +11,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { RotatedViewPieChart } from "@/components/charts/rotated-view-pie-chart";
+import { SpendingLineChart } from "@/components/charts/spending-line-chart";
 import { HoursCalculator } from "@/components/hours-calculator";
+import { StatCard, StatCardRow } from "@/components/stats/stat-card";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { Card } from "@/components/ui/card";
 import { SectionLabel } from "@/components/ui/section-label";
 import { getCategoryColorMap } from "@/constants/categories";
 import { Spacing } from "@/constants/theme";
@@ -21,9 +25,20 @@ import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
 import { useMonthlyExpenses } from "@/hooks/data/use-monthly-expenses";
 import { useProfile } from "@/hooks/data/use-profile";
 import { formatCurrency } from "@/lib/format";
+import { buildInsights } from "@/lib/insights";
+import {
+  buildBudgetTrajectory,
+  buildDailyCumulativeSeries,
+  calculateAverageDailySpend,
+  calculateCategoryChangePercent,
+  calculatePercentSpent,
+  calculateProjectedSpending,
+  calculateSafeDailySpend,
+} from "@/lib/stats";
 
 const TEXT_GREY = "#7A7F87";
 const PRIMARY_GREEN = "#2D612A";
+const NEGATIVE_RED = "#C0392B";
 
 const formatMonth = (month: Date) =>
   month.toLocaleDateString("en-SG", {
@@ -31,37 +46,144 @@ const formatMonth = (month: Date) =>
     year: "numeric",
   });
 
+function daysInMonthOf(month: Date): number {
+  return new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+}
+
 export default function StatsScreen() {
   const { user } = useCurrentUser();
   const { profile } = useProfile(user?.id);
   const { convert } = useExchangeRates();
   const currency = profile?.currency ?? "SGD";
+  const budget = Number(profile?.monthly_budget ?? 0);
+
   const [selectedMonth, setSelectedMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
-  const { expenses } = useMonthlyExpenses(user?.id, selectedMonth);
+  const previousMonth = useMemo(
+    () => new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1),
+    [selectedMonth],
+  );
+  const { expenses: currentExpenses } = useMonthlyExpenses(user?.id, selectedMonth);
+  const { expenses: previousExpenses } = useMonthlyExpenses(user?.id, previousMonth);
   const scrollViewRef = useRef<ScrollView>(null);
+  const [chartWidth, setChartWidth] = useState(0);
+
+  const today = new Date();
+  const isCurrentMonth =
+    selectedMonth.getFullYear() === today.getFullYear() &&
+    selectedMonth.getMonth() === today.getMonth();
+  const daysInMonth = daysInMonthOf(selectedMonth);
+  const daysElapsed = isCurrentMonth
+    ? today.getDate()
+    : selectedMonth < today
+      ? daysInMonth
+      : 0;
+  // Includes today — you still have today's allowance left to spend.
+  const daysRemaining = isCurrentMonth ? daysInMonth - today.getDate() + 1 : 0;
+
+  const convertedCurrent = useMemo(
+    () =>
+      currentExpenses.map((e) => ({
+        ...e,
+        amount: convert(Number(e.amount) || 0, e.currency, currency),
+      })),
+    [currentExpenses, convert, currency],
+  );
+  const convertedPrevious = useMemo(
+    () =>
+      previousExpenses.map((e) => ({
+        ...e,
+        amount: convert(Number(e.amount) || 0, e.currency, currency),
+      })),
+    [previousExpenses, convert, currency],
+  );
+
+  const currentCategoryTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const e of convertedCurrent) {
+      const key = e.category ?? "others";
+      totals[key] = (totals[key] ?? 0) + e.amount;
+    }
+    return totals;
+  }, [convertedCurrent]);
+
+  const previousCategoryTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const e of convertedPrevious) {
+      const key = e.category ?? "others";
+      totals[key] = (totals[key] ?? 0) + e.amount;
+    }
+    return totals;
+  }, [convertedPrevious]);
 
   const categoryData = useMemo(() => {
-    const totals: Record<string, number> = {};
-
-    for (const expense of expenses) {
-      const key = expense.category ?? "others";
-      // Almost always already in `currency` (the common case); only rows from
-      // before a currency change need converting.
-      const amount = convert(Number(expense.amount) || 0, expense.currency, currency);
-      totals[key] = (totals[key] ?? 0) + amount;
-    }
-
-    const entries = Object.entries(totals);
+    const entries = Object.entries(currentCategoryTotals);
     const categoryColorMap = getCategoryColorMap(entries.map(([label]) => label));
 
-    return entries.map(([label, value]) => ({
-      label,
-      value,
-      color: categoryColorMap[label],
-    }));
-  }, [expenses, convert, currency]);
+    return entries
+      .map(([label, value]) => ({
+        label,
+        value,
+        color: categoryColorMap[label],
+        changePercent: calculateCategoryChangePercent(
+          value,
+          previousCategoryTotals[label] ?? 0,
+        ),
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [currentCategoryTotals, previousCategoryTotals]);
+
+  const totalSpent = categoryData.reduce((sum, item) => sum + item.value, 0);
+  const previousTotalSpent = Object.values(previousCategoryTotals).reduce(
+    (sum, v) => sum + v,
+    0,
+  );
+  const remaining = budget - totalSpent;
+  const percentSpent = calculatePercentSpent(totalSpent, budget);
+
+  const dailySeries = useMemo(
+    () => buildDailyCumulativeSeries(convertedCurrent, daysInMonth),
+    [convertedCurrent, daysInMonth],
+  );
+  const actualSeries = isCurrentMonth ? dailySeries.slice(0, daysElapsed) : dailySeries;
+  const trajectorySeries = useMemo(
+    () => buildBudgetTrajectory(budget, daysInMonth),
+    [budget, daysInMonth],
+  );
+
+  const projectedTotal = calculateProjectedSpending(totalSpent, daysElapsed, daysInMonth);
+  const safeDailySpend = calculateSafeDailySpend(remaining, daysRemaining);
+  const currentAvgDailySpend = calculateAverageDailySpend(totalSpent, daysElapsed);
+  const previousAvgDailySpend = calculateAverageDailySpend(
+    previousTotalSpent,
+    daysInMonthOf(previousMonth),
+  );
+
+  const insights = useMemo(
+    () =>
+      buildInsights({
+        categoryTotals: categoryData.map((c) => ({
+          label: c.label,
+          current: c.value,
+          previous: previousCategoryTotals[c.label] ?? 0,
+        })),
+        currentAvgDailySpend,
+        previousAvgDailySpend,
+        projectedTotal,
+        budget,
+        currency,
+      }),
+    [
+      categoryData,
+      previousCategoryTotals,
+      currentAvgDailySpend,
+      previousAvgDailySpend,
+      projectedTotal,
+      budget,
+      currency,
+    ],
+  );
 
   const moveMonth = (difference: number) => {
     setSelectedMonth(
@@ -70,7 +192,9 @@ export default function StatsScreen() {
     );
   };
 
-  const totalSpent = categoryData.reduce((sum, item) => sum + item.value, 0);
+  const handleChartLayout = (event: LayoutChangeEvent) => {
+    setChartWidth(event.nativeEvent.layout.width);
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -93,34 +217,88 @@ export default function StatsScreen() {
               Stats
             </ThemedText>
 
+            <View style={styles.monthSelector}>
+              <TouchableOpacity
+                accessibilityLabel="Previous month"
+                style={styles.monthButton}
+                onPress={() => moveMonth(-1)}
+              >
+                <ThemedText style={styles.monthButtonText}>‹</ThemedText>
+              </TouchableOpacity>
+
+              <ThemedText style={styles.monthText}>
+                {formatMonth(selectedMonth)}
+              </ThemedText>
+
+              <TouchableOpacity
+                accessibilityLabel="Next month"
+                style={styles.monthButton}
+                onPress={() => moveMonth(1)}
+              >
+                <ThemedText style={styles.monthButtonText}>›</ThemedText>
+              </TouchableOpacity>
+            </View>
+
+            <StatCardRow>
+              <StatCard label="Monthly Spending" value={formatCurrency(totalSpent, currency)} />
+              <StatCard
+                label="Budget Remaining"
+                value={formatCurrency(remaining, currency)}
+                valueColor={remaining < 0 ? NEGATIVE_RED : undefined}
+              />
+              <StatCard
+                label="Projected Spending"
+                value={formatCurrency(projectedTotal, currency)}
+                valueColor={
+                  budget > 0 && projectedTotal > budget ? NEGATIVE_RED : undefined
+                }
+              />
+            </StatCardRow>
+
+            {isCurrentMonth && budget > 0 && (
+              <Card style={styles.safeSpendCard}>
+                <ThemedText style={styles.safeSpendLabel}>Safe to spend</ThemedText>
+                <ThemedText
+                  style={styles.safeSpendValue}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.6}
+                >
+                  {formatCurrency(Math.max(safeDailySpend, 0), currency)}
+                  <ThemedText style={styles.safeSpendUnit}> / day</ThemedText>
+                </ThemedText>
+                <ThemedText style={styles.safeSpendSubtext}>
+                  {remaining >= 0
+                    ? `${formatCurrency(remaining, currency)} left over ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}`
+                    : `You're ${formatCurrency(-remaining, currency)} over budget already`}
+                </ThemedText>
+              </Card>
+            )}
+
+            <ThemedView style={styles.divider} />
+
+            <View>
+              <SectionLabel style={{ color: TEXT_GREY }}>
+                Spending Over Time
+              </SectionLabel>
+              <Card style={styles.chartCard} onLayout={handleChartLayout}>
+                {chartWidth > 0 && (
+                  <SpendingLineChart
+                    actual={actualSeries}
+                    trajectory={trajectorySeries}
+                    daysInMonth={daysInMonth}
+                    width={chartWidth}
+                  />
+                )}
+              </Card>
+            </View>
+
             <ThemedView style={styles.divider} />
 
             <View>
               <SectionLabel style={{ color: TEXT_GREY }}>
                 Spending Breakdown
               </SectionLabel>
-
-              <View style={styles.monthSelector}>
-                <TouchableOpacity
-                  accessibilityLabel="Previous month"
-                  style={styles.monthButton}
-                  onPress={() => moveMonth(-1)}
-                >
-                  <ThemedText style={styles.monthButtonText}>‹</ThemedText>
-                </TouchableOpacity>
-
-                <ThemedText style={styles.monthText}>
-                  {formatMonth(selectedMonth)}
-                </ThemedText>
-
-                <TouchableOpacity
-                  accessibilityLabel="Next month"
-                  style={styles.monthButton}
-                  onPress={() => moveMonth(1)}
-                >
-                  <ThemedText style={styles.monthButtonText}>›</ThemedText>
-                </TouchableOpacity>
-              </View>
 
               {categoryData.length > 0 ? (
                 <View style={styles.breakdownContainer}>
@@ -147,6 +325,22 @@ export default function StatsScreen() {
                               item.label.slice(1)}
                             {` (${percentage}%)`}
                           </ThemedText>
+                          {item.changePercent !== null && (
+                            <ThemedText
+                              style={[
+                                styles.legendChange,
+                                {
+                                  color:
+                                    item.changePercent > 0
+                                      ? NEGATIVE_RED
+                                      : PRIMARY_GREEN,
+                                },
+                              ]}
+                            >
+                              {item.changePercent > 0 ? "+" : ""}
+                              {Math.round(item.changePercent)}%
+                            </ThemedText>
+                          )}
                           <ThemedText style={styles.legendAmount}>
                             {formatCurrency(item.value, currency)}
                           </ThemedText>
@@ -174,6 +368,37 @@ export default function StatsScreen() {
                 </ThemedText>
               )}
             </View>
+
+            {insights.length > 0 && (
+              <>
+                <ThemedView style={styles.divider} />
+                <View>
+                  <SectionLabel style={{ color: TEXT_GREY }}>Insights</SectionLabel>
+                  <View style={styles.insightsList}>
+                    {insights.map((insight, index) => (
+                      <View key={index} style={styles.insightRow}>
+                        <View
+                          style={[
+                            styles.insightDot,
+                            {
+                              backgroundColor:
+                                insight.tone === "positive"
+                                  ? PRIMARY_GREEN
+                                  : insight.tone === "negative"
+                                    ? NEGATIVE_RED
+                                    : TEXT_GREY,
+                            },
+                          ]}
+                        />
+                        <ThemedText style={styles.insightText}>
+                          {insight.text}
+                        </ThemedText>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </>
+            )}
 
             <ThemedView style={styles.divider} />
 
@@ -207,7 +432,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: Spacing.two,
   },
   monthButton: {
     width: 36,
@@ -224,6 +448,36 @@ const styles = StyleSheet.create({
     color: TEXT_GREY,
     fontSize: 16,
     fontWeight: "600",
+  },
+  safeSpendCard: {
+    backgroundColor: PRIMARY_GREEN,
+    alignItems: "flex-start",
+  },
+  safeSpendLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#D7E9D2",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  safeSpendValue: {
+    fontSize: 28,
+    lineHeight: 36,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  safeSpendUnit: {
+    fontSize: 14,
+    lineHeight: 36,
+    fontWeight: "600",
+    color: "#D7E9D2",
+  },
+  safeSpendSubtext: {
+    fontSize: 12,
+    color: "#D7E9D2",
+  },
+  chartCard: {
+    marginTop: Spacing.two,
   },
   breakdownContainer: {
     marginTop: Spacing.three,
@@ -249,8 +503,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: TEXT_GREY,
   },
+  legendChange: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
   legendAmount: {
-    width: 110,
+    width: 90,
     textAlign: "right",
     fontSize: 13,
     fontWeight: "600",
@@ -267,5 +525,27 @@ const styles = StyleSheet.create({
     color: TEXT_GREY,
     textAlign: "center",
     marginVertical: Spacing.four,
+  },
+  insightsList: {
+    marginTop: Spacing.two,
+    gap: Spacing.two,
+  },
+  insightRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.two,
+  },
+  insightDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 5,
+    flexShrink: 0,
+  },
+  insightText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#3A3F45",
+    lineHeight: 18,
   },
 });
