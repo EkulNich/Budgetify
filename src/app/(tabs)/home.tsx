@@ -1,11 +1,12 @@
 import {
   ActivityIndicator,
+  Modal,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BudgetBar } from "@/components/budget-bar";
 import { ThemedText } from "@/components/themed-text";
@@ -22,8 +23,10 @@ import { formatCurrency } from "@/lib/format";
 import { getDisplayStreak } from "@/lib/streak";
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+
+const RECENT_EXPENSE_COUNT = 5;
 
 function SwipeableExpenseRow({
   expense,
@@ -78,6 +81,8 @@ export default function HomeScreen() {
     loading: tipsLoading,
     refetch: refetchTips,
   } = useRecommendations(user?.id);
+  const [allExpensesVisible, setAllExpensesVisible] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const today = new Date().toISOString().split("T")[0];
   const streak = getDisplayStreak(
@@ -161,23 +166,82 @@ export default function HomeScreen() {
             </Card>
 
             <Card style={styles.expensesCard}>
-              <ThemedText type="subtitle" themeColor="backgroundSelected">
-                Expenses
-              </ThemedText>
+              <View style={styles.expensesHeader}>
+                <ThemedText type="subtitle" themeColor="backgroundSelected">
+                  Expenses
+                </ThemedText>
+                {recentExpenses.length > RECENT_EXPENSE_COUNT && (
+                  <TouchableOpacity onPress={() => setAllExpensesVisible(true)}>
+                    <ThemedText type="small" style={{ color: "#2D612A" }}>
+                      See All
+                    </ThemedText>
+                  </TouchableOpacity>
+                )}
+              </View>
               {recentExpenses.length === 0 ? (
                 <ThemedText type="small">No expenses yet</ThemedText>
               ) : (
-                recentExpenses.map((expense) => (
-                  <SwipeableExpenseRow
-                    key={expense.id}
-                    expense={expense}
-                    onDelete={handleDelete}
-                  />
-                ))
+                recentExpenses
+                  .slice(0, RECENT_EXPENSE_COUNT)
+                  .map((expense) => (
+                    <SwipeableExpenseRow
+                      key={expense.id}
+                      expense={expense}
+                      onDelete={handleDelete}
+                    />
+                  ))
               )}
             </Card>
           </ScrollView>
         </SafeAreaView>
+
+        <Modal
+          visible={allExpensesVisible}
+          animationType="slide"
+          onRequestClose={() => setAllExpensesVisible(false)}
+        >
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <ThemedView style={styles.container}>
+              <SafeAreaView style={styles.safeArea}>
+                <View
+                  style={[
+                    styles.modalHeader,
+                    { paddingTop: insets.top + Spacing.two },
+                  ]}
+                >
+                  <ThemedText
+                    type="title"
+                    style={{ color: "#2D612A", fontSize: 28 }}
+                  >
+                    All Expenses
+                  </ThemedText>
+                  <TouchableOpacity onPress={() => setAllExpensesVisible(false)}>
+                    <ThemedText style={{ color: "#2D612A", fontWeight: "600" }}>
+                      Done
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView
+                  style={{ alignSelf: "stretch" }}
+                  contentContainerStyle={styles.modalScrollContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {recentExpenses.length === 0 ? (
+                    <ThemedText type="small">No expenses yet</ThemedText>
+                  ) : (
+                    recentExpenses.map((expense) => (
+                      <SwipeableExpenseRow
+                        key={expense.id}
+                        expense={expense}
+                        onDelete={handleDelete}
+                      />
+                    ))
+                  )}
+                </ScrollView>
+              </SafeAreaView>
+            </ThemedView>
+          </GestureHandlerRootView>
+        </Modal>
       </ThemedView>
     </GestureHandlerRootView>
   );
@@ -219,6 +283,24 @@ const styles = StyleSheet.create({
   },
   expensesCard: {
     alignSelf: "stretch",
+  },
+  expensesHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  modalHeader: {
+    alignSelf: "stretch",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.three,
+  },
+  modalScrollContent: {
+    alignSelf: "stretch",
+    gap: Spacing.two,
+    paddingBottom: Spacing.four,
   },
   tipCard: {
     alignSelf: "stretch",
