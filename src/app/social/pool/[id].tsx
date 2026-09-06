@@ -103,7 +103,10 @@ export default function PoolDetailScreen() {
     );
   };
 
+  const canLeave = balances.length === 0;
+
   const handleLeaveGroup = () => {
+    if (!canLeave) return;
     Alert.alert("Leave Group", "Are you sure you want to leave this group?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -305,11 +308,27 @@ export default function PoolDetailScreen() {
             </View>
 
             {/* Leave Group */}
-            <TouchableOpacity style={styles.leaveBtn} onPress={handleLeaveGroup}>
-              <ThemedText style={{ color: "#e55", fontWeight: "600", fontSize: 15 }}>
+            <TouchableOpacity
+              style={[styles.leaveBtn, !canLeave && styles.leaveBtnDisabled]}
+              onPress={handleLeaveGroup}
+              disabled={!canLeave}
+            >
+              <ThemedText
+                style={{
+                  color: canLeave ? "#e55" : "#aaa",
+                  fontWeight: "600",
+                  fontSize: 15,
+                }}
+              >
                 Leave Group
               </ThemedText>
             </TouchableOpacity>
+            {!canLeave && (
+              <ThemedText style={styles.leaveHint}>
+                You can't leave this group while a balance is outstanding with
+                another member — settle up first.
+              </ThemedText>
+            )}
           </ScrollView>
 
           <AddExpenseModal
@@ -387,5 +406,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e55",
+  },
+  leaveBtnDisabled: {
+    borderColor: "#ddd",
+  },
+  leaveHint: {
+    color: "#888",
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: Spacing.one,
   },
 });
