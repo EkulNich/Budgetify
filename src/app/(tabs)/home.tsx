@@ -94,6 +94,7 @@ export default function HomeScreen() {
     refetch: refetchTips,
   } = useRecommendations(user?.id);
   const [allExpensesVisible, setAllExpensesVisible] = useState(false);
+  const [allTipsVisible, setAllTipsVisible] = useState(false);
   const [dateFilter, setDateFilter] = useState<string | null>(null);
   const [dateFilterPickerVisible, setDateFilterPickerVisible] = useState(false);
   const insets = useSafeAreaInsets();
@@ -170,9 +171,18 @@ export default function HomeScreen() {
             />
 
             <Card style={styles.tipCard}>
-              <ThemedText type="smallBold" themeColor="backgroundSelected">
-                AI Smart Recommendations
-              </ThemedText>
+              <View style={styles.tipHeader}>
+                <ThemedText type="smallBold" themeColor="backgroundSelected">
+                  AI Smart Recommendations
+                </ThemedText>
+                {recommendations.length > 1 && (
+                  <TouchableOpacity onPress={() => setAllTipsVisible((v) => !v)}>
+                    <ThemedText type="small" style={{ color: "#2D612A" }}>
+                      {allTipsVisible ? "Show Less" : "See All"}
+                    </ThemedText>
+                  </TouchableOpacity>
+                )}
+              </View>
               {tipsLoading ? (
                 <ActivityIndicator color="#2D612A" />
               ) : recommendations.length === 0 ? (
@@ -180,16 +190,18 @@ export default function HomeScreen() {
                   No recommendations available
                 </ThemedText>
               ) : (
-                recommendations.map((tip, index) => (
-                  <ThemedText
-                    key={index}
-                    type="small"
-                    themeColor="backgroundSelected"
-                    style={{ marginTop: index === 0 ? 4 : 8 }}
-                  >
-                    {tip}
-                  </ThemedText>
-                ))
+                (allTipsVisible ? recommendations : recommendations.slice(0, 1)).map(
+                  (tip, index) => (
+                    <ThemedText
+                      key={index}
+                      type="small"
+                      themeColor="backgroundSelected"
+                      style={{ marginTop: index === 0 ? 4 : 8 }}
+                    >
+                      {tip}
+                    </ThemedText>
+                  ),
+                )
               )}
             </Card>
 
@@ -366,6 +378,11 @@ const styles = StyleSheet.create({
   tipCard: {
     alignSelf: "stretch",
     gap: Spacing.one,
+  },
+  tipHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   deleteBtn: {
     width: 75,
