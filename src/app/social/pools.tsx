@@ -9,7 +9,7 @@ import { createPool, usePools } from "@/hooks/data/use-pools";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency } from "@/lib/format";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -41,6 +41,13 @@ export default function PoolsScreen() {
   const [poolCurrency, setPoolCurrency] = useState("SGD");
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredPools = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return pools;
+    return pools.filter((pool) => pool.name.toLowerCase().includes(query));
+  }, [pools, searchQuery]);
 
   useEffect(() => {
     if (profile?.currency) setPoolCurrency(profile.currency);
@@ -105,18 +112,40 @@ export default function PoolsScreen() {
           </TouchableOpacity>
         </View>
 
+        {pools.length > 0 && (
+          <TextInput
+            style={[
+              styles.searchInput,
+              {
+                borderColor: colors.backgroundElement,
+                color: colors.backgroundElement,
+              },
+            ]}
+            placeholder="Search pools..."
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+          />
+        )}
+
         {loading ? (
           <ActivityIndicator color={colors.backgroundElement} />
         ) : pools.length === 0 ? (
           <ThemedText style={{ color: colors.textSecondary }}>
             No pools yet — tap + to create one!
           </ThemedText>
+        ) : filteredPools.length === 0 ? (
+          <ThemedText style={{ color: colors.textSecondary }}>
+            No pools match "{searchQuery}".
+          </ThemedText>
         ) : (
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            {pools.map((pool) => {
+            {filteredPools.map((pool) => {
               const progress = Math.min(pool.total_spent / pool.pool_limit, 1);
               return (
                 <TouchableOpacity
@@ -268,6 +297,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.three,
   },
   scrollContent: { gap: Spacing.three, paddingBottom: Spacing.four },
+  searchInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: Spacing.three,
+    fontSize: 15,
+    marginBottom: Spacing.three,
+  },
   card: { borderRadius: 16, padding: Spacing.three },
   poolName: { fontSize: 18, fontWeight: "700", marginBottom: Spacing.one },
   progressBg: { height: 8, borderRadius: 4, backgroundColor: "#e0e0e0" },

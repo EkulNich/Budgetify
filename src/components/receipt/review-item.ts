@@ -22,3 +22,14 @@ export function makeReviewItems(items: ReceiptItem[]): ReviewItem[] {
     assignedTo: new Set<string>(),
   }));
 }
+
+/** A blank item for manually adding one the scanner missed. */
+export function makeBlankReviewItem(): ReviewItem {
+  return {
+    id: `item-${nextId++}`,
+    name: "",
+    category: null,
+    price: "0.00",
+    assignedTo: new Set<string>(),
+  };
+}

@@ -11,6 +11,7 @@ type ReceiptItemRowProps = {
   item: ReviewItem;
   colors: ThemeColors;
   onChange: (item: ReviewItem) => void;
+  onRemove: () => void;
   /** Pool members, for rendering the current assignment. Omit for individual mode. */
   members?: PoolMember[];
   onOpenAssign?: () => void;
@@ -20,6 +21,7 @@ export function ReceiptItemRow({
   item,
   colors,
   onChange,
+  onRemove,
   members,
   onOpenAssign,
 }: ReceiptItemRowProps) {
@@ -33,13 +35,33 @@ export function ReceiptItemRow({
 
   return (
     <View style={styles.card}>
-      <TextInput
-        style={[styles.nameInput, { color: colors.backgroundElement }]}
-        value={item.name}
-        onChangeText={(text) => onChange({ ...item, name: text })}
-        placeholder="Item name"
-        placeholderTextColor="#888"
-      />
+      <View style={styles.nameRow}>
+        <TextInput
+          style={[styles.nameInput, { color: colors.backgroundElement }]}
+          value={item.name}
+          onChangeText={(text) => onChange({ ...item, name: text })}
+          placeholder="Item name"
+          placeholderTextColor="#888"
+        />
+        <TouchableOpacity
+          style={styles.removeBtn}
+          onPress={onRemove}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <ThemedText
+            style={{
+              color: "#C0392B",
+              fontSize: 18,
+              lineHeight: 18,
+              fontWeight: "700",
+              textAlign: "center",
+              includeFontPadding: false,
+            }}
+          >
+            −
+          </ThemedText>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.chipRow}>
         {CATEGORIES.map((c) => {
@@ -117,10 +139,25 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
   nameInput: {
+    flex: 1,
     fontSize: 15,
     fontWeight: "600",
     padding: 0,
+  },
+  removeBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "#C0392B",
+    alignItems: "center",
+    justifyContent: "center",
   },
   chipRow: {
     flexDirection: "row",

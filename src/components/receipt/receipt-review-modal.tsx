@@ -25,7 +25,7 @@ import { formatCurrency } from "@/lib/format";
 import type { ReceiptItem } from "@/lib/receipt";
 import { ItemAssignSheet } from "./item-assign-sheet";
 import { ReceiptItemRow } from "./receipt-item-row";
-import { makeReviewItems, type ReviewItem } from "./review-item";
+import { makeBlankReviewItem, makeReviewItems, type ReviewItem } from "./review-item";
 
 export type SavedGroupEntry = {
   category: CategoryKey;
@@ -84,6 +84,7 @@ export function ReceiptReviewModal({
   const [currency, setCurrency] = useState(defaultCurrency);
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
   const [assigningItemId, setAssigningItemId] = useState<string | null>(null);
+  const [assigningAll, setAssigningAll] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const itemsSubtotal = useMemo(
@@ -125,6 +126,32 @@ export function ReceiptReviewModal({
 
   const updateItem = (updated: ReviewItem) => {
     setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+  };
+
+  const handleAddItem = () => {
+    setItems((prev) => [...prev, makeBlankReviewItem()]);
+  };
+
+  const handleRemoveItem = (id: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    if (assigningItemId === id) setAssigningItemId(null);
+  };
+
+  // Only pre-fills the "assign all" sheet with a shared selection when every
+  // item currently agrees on one — otherwise it opens empty.
+  const commonAssignedTo = useMemo(() => {
+    if (items.length === 0) return new Set<string>();
+    const [first, ...rest] = items;
+    const allSame = rest.every(
+      (i) =>
+        i.assignedTo.size === first.assignedTo.size &&
+        [...i.assignedTo].every((uid) => first.assignedTo.has(uid)),
+    );
+    return allSame ? first.assignedTo : new Set<string>();
+  }, [items]);
+
+  const handleAssignAll = (assignedTo: Set<string>) => {
+    setItems((prev) => prev.map((i) => ({ ...i, assignedTo: new Set(assignedTo) })));
   };
 
   const handleSave = async () => {
@@ -242,6 +269,19 @@ export function ReceiptReviewModal({
               </View>
             )}
 
+            {isGroup && items.length > 0 && (
+              <TouchableOpacity
+                style={styles.splitAllBtn}
+                onPress={() => setAssigningAll(true)}
+              >
+                <ThemedText
+                  style={{ color: colors.backgroundElement, fontWeight: "600", fontSize: 13 }}
+                >
+                  Split all items the same way
+                </ThemedText>
+              </TouchableOpacity>
+            )}
+
             {isGroup && memberTotals.size > 0 && (
               <View style={styles.breakdownCard}>
                 <ThemedText style={styles.breakdownLabel}>Split so far</ThemedText>
@@ -282,11 +322,23 @@ export function ReceiptReviewModal({
                       item={item}
                       colors={colors}
                       onChange={updateItem}
+                      onRemove={() => handleRemoveItem(item.id)}
                       members={isGroup ? members : undefined}
                       onOpenAssign={() => setAssigningItemId(item.id)}
                     />
                   ))
                 )}
+
+                <TouchableOpacity
+                  style={[styles.addItemBtn, { borderColor: colors.backgroundElement }]}
+                  onPress={handleAddItem}
+                >
+                  <ThemedText
+                    style={{ color: colors.backgroundElement, fontWeight: "600" }}
+                  >
+                    + Add Item
+                  </ThemedText>
+                </TouchableOpacity>
               </ScrollView>
             </KeyboardAvoidingView>
 
@@ -353,6 +405,20 @@ export function ReceiptReviewModal({
               onClose={() => setAssigningItemId(null)}
             />
           )}
+
+          {assigningAll && (
+            <ItemAssignSheet
+              visible={assigningAll}
+              itemName="All Items"
+              price={itemsSubtotal}
+              currency={currency}
+              members={members}
+              assignedTo={commonAssignedTo}
+              colors={colors}
+              onChange={handleAssignAll}
+              onClose={() => setAssigningAll(false)}
+            />
+          )}
         </ThemedView>
       </GestureHandlerRootView>
     </Modal>
@@ -388,6 +454,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     padding: Spacing.three,
+  },
+  splitAllBtn: {
+    alignSelf: "center",
+    marginBottom: Spacing.two,
   },
   breakdownCard: {
     marginHorizontal: Spacing.four,
@@ -427,6 +497,13 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     paddingTop: 0,
     gap: Spacing.two,
+  },
+  addItemBtn: {
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: 12,
+    padding: Spacing.three,
+    alignItems: "center",
   },
   footer: {
     backgroundColor: "#fff",
