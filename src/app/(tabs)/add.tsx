@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 import {
   CURRENCY_OPTIONS,
@@ -268,25 +269,24 @@ export default function AddScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <ThemedText
-              type="title"
-              style={{ color: colors.backgroundElement, marginBottom: Spacing.two }}
-            >
-              Add Expense
-            </ThemedText>
-
             <View style={styles.addForSection}>
               <ThemedText style={[styles.label, { color: colors.backgroundElement }]}>
                 Add for
               </ThemedText>
               <TouchableOpacity
-                style={[styles.dropdown, { borderColor: colors.backgroundElement }]}
+                style={[
+                  styles.dropdown,
+                  { borderColor: colors.backgroundElement, backgroundColor: colors.backgroundElement + "0D" },
+                ]}
                 onPress={() => setPickerVisible(true)}
               >
-                <ThemedText style={{ color: colors.backgroundElement }}>
-                  {currentLabel}
-                </ThemedText>
-                <ThemedText style={{ color: colors.backgroundElement }}>▾</ThemedText>
+                <View style={styles.dropdownLeft}>
+                  <Ionicons name="people-outline" size={16} color={colors.backgroundElement} />
+                  <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600" }}>
+                    {currentLabel}
+                  </ThemedText>
+                </View>
+                <ThemedText style={{ color: colors.backgroundElement, fontSize: 11 }}>▾</ThemedText>
               </TouchableOpacity>
             </View>
 
@@ -313,9 +313,17 @@ export default function AddScreen() {
                 {scanning ? (
                   <ActivityIndicator color={colors.backgroundElement} />
                 ) : (
-                  <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600" }}>
-                    📷 Scan Receipt
-                  </ThemedText>
+                  <>
+                    <View style={styles.scanButtonTitleRow}>
+                      <Ionicons name="camera-outline" size={16} color={colors.backgroundElement} />
+                      <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600" }}>
+                        Scan Receipt
+                      </ThemedText>
+                    </View>
+                    <ThemedText style={styles.scanButtonSubtext}>
+                      Auto-fill details from a receipt
+                    </ThemedText>
+                  </>
                 )}
               </TouchableOpacity>
             </View>
@@ -372,31 +380,56 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
   },
   scrollContent: {
+    gap: Spacing.two,
     paddingBottom: Spacing.four,
   },
   label: {
-    fontWeight: "600",
-    fontSize: 13,
+    fontWeight: "700",
+    fontSize: 15,
   },
   addForSection: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
     gap: Spacing.one,
-    marginBottom: Spacing.two,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   formSection: {
-    gap: Spacing.three,
+    gap: Spacing.two,
   },
   dropdown: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: Spacing.three,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  dropdownLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
   },
   scanButton: {
     borderWidth: 1,
     borderRadius: 8,
-    padding: Spacing.three,
+    padding: Spacing.two,
     alignItems: "center",
+    gap: 2,
+  },
+  scanButtonTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  scanButtonSubtext: {
+    fontSize: 11.5,
+    color: "#9AA0A8",
   },
 });

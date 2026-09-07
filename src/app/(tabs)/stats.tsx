@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Svg, { Circle, Line, Path } from "react-native-svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { RotatedViewPieChart } from "@/components/charts/rotated-view-pie-chart";
@@ -161,6 +162,20 @@ export default function StatsScreen() {
     previousTotalSpent,
     daysInMonthOf(previousMonth),
   );
+  // "On track" only when the daily allowance comfortably covers what you've
+  // actually been spending per day — not just whenever it's non-negative.
+  const isOnTrack =
+    isCurrentMonth && budget > 0 && safeDailySpend > 0 && safeDailySpend >= currentAvgDailySpend;
+
+  const monthlySpendingChange = calculateCategoryChangePercent(totalSpent, previousTotalSpent);
+  const budgetRemainingChange = calculateCategoryChangePercent(
+    remaining,
+    budget - previousTotalSpent,
+  );
+  const projectedSpendingChange = calculateCategoryChangePercent(
+    projectedTotal,
+    previousTotalSpent,
+  );
 
   const insights = useMemo(
     () =>
@@ -215,52 +230,94 @@ export default function StatsScreen() {
             }
             showsVerticalScrollIndicator={false}
           >
-            <ThemedText type="title" style={styles.title}>
-              Stats
-            </ThemedText>
+            <View style={styles.header}>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="title" style={styles.title}>
+                  Stats
+                </ThemedText>
+                <ThemedText style={styles.subtitle}>
+                  See how you're doing this month.
+                </ThemedText>
+              </View>
 
-            <View style={styles.monthSelector}>
-              <TouchableOpacity
-                accessibilityLabel="Previous month"
-                style={styles.monthButton}
-                onPress={() => moveMonth(-1)}
-              >
-                <ThemedText style={styles.monthButtonText}>‹</ThemedText>
-              </TouchableOpacity>
+              <View style={styles.monthSelector}>
+                <TouchableOpacity
+                  accessibilityLabel="Previous month"
+                  style={styles.monthButton}
+                  onPress={() => moveMonth(-1)}
+                >
+                  <ThemedText style={styles.monthButtonText}>‹</ThemedText>
+                </TouchableOpacity>
 
-              <ThemedText style={styles.monthText}>
-                {formatMonth(selectedMonth)}
-              </ThemedText>
+                <ThemedText style={styles.monthText}>
+                  {formatMonth(selectedMonth)}
+                </ThemedText>
 
-              <TouchableOpacity
-                accessibilityLabel="Next month"
-                style={styles.monthButton}
-                onPress={() => moveMonth(1)}
-              >
-                <ThemedText style={styles.monthButtonText}>›</ThemedText>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityLabel="Next month"
+                  style={styles.monthButton}
+                  onPress={() => moveMonth(1)}
+                >
+                  <ThemedText style={styles.monthButtonText}>›</ThemedText>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <StatCardRow>
-              <StatCard label="Monthly Spending" value={totalSpent} currency={currency} />
+              <StatCard
+                label="Monthly Spending"
+                value={totalSpent}
+                currency={currency}
+                icon="spending"
+                changePercent={monthlySpendingChange}
+                changeGoodDirection="down"
+              />
               <StatCard
                 label="Budget Remaining"
                 value={remaining}
                 currency={currency}
+                icon="remaining"
                 valueColor={remaining < 0 ? NEGATIVE_RED : undefined}
+                changePercent={budgetRemainingChange}
+                changeGoodDirection="up"
               />
               <StatCard
                 label="Projected Spending"
                 value={projectedTotal}
                 currency={currency}
+                icon="projected"
                 valueColor={
                   budget > 0 && projectedTotal > budget ? NEGATIVE_RED : undefined
                 }
+                changePercent={projectedSpendingChange}
+                changeGoodDirection="down"
               />
             </StatCardRow>
 
             {isCurrentMonth && budget > 0 && (
               <Card style={styles.safeSpendCard}>
+                <Svg
+                  width={140}
+                  height={90}
+                  viewBox="0 0 140 90"
+                  style={styles.safeSpendIllustration}
+                >
+                  <Circle cx={40} cy={30} r={16} fill="#ffffff" opacity={0.1} />
+                  <Circle cx={58} cy={24} r={11} fill="#ffffff" opacity={0.1} />
+                  <Path d="M70 90 L100 40 L118 65 L132 90 Z" fill="#ffffff" opacity={0.1} />
+                  <Path d="M95 90 L118 52 L140 90 Z" fill="#ffffff" opacity={0.16} />
+                  <Line
+                    x1={118}
+                    y1={52}
+                    x2={118}
+                    y2={30}
+                    stroke="#ffffff"
+                    strokeWidth={1.6}
+                    opacity={0.5}
+                  />
+                  <Path d="M118 30 L131 35 L118 40 Z" fill="#ffffff" opacity={0.7} />
+                </Svg>
+
                 <ThemedText style={styles.safeSpendLabel}>Safe to spend</ThemedText>
                 <ThemedText
                   style={styles.safeSpendValue}
@@ -276,6 +333,11 @@ export default function StatsScreen() {
                     ? `${formatCurrency(remaining, currency)} left over ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}`
                     : `You're ${formatCurrency(-remaining, currency)} over budget already`}
                 </ThemedText>
+                {isOnTrack && (
+                  <View style={styles.onTrackPill}>
+                    <ThemedText style={styles.onTrackText}>You're on track! 🎉</ThemedText>
+                  </View>
+                )}
               </Card>
             )}
 
@@ -427,35 +489,57 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.four + 24,
   },
   title: { color: PRIMARY_GREEN },
+  subtitle: {
+    fontSize: 14,
+    color: TEXT_GREY,
+    marginTop: 2,
+  },
   divider: {
     height: 1,
     backgroundColor: "#D7D9DC",
     marginVertical: Spacing.one,
   },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
   monthSelector: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 2,
+    backgroundColor: "#EDEDED",
+    borderRadius: 999,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+    marginTop: 6,
   },
   monthButton: {
-    width: 36,
-    height: 36,
+    width: 22,
+    height: 22,
     alignItems: "center",
     justifyContent: "center",
   },
   monthButtonText: {
     color: TEXT_GREY,
-    fontSize: 30,
-    lineHeight: 32,
+    fontSize: 20,
+    lineHeight: 22,
   },
   monthText: {
-    color: TEXT_GREY,
-    fontSize: 16,
+    color: "#23262B",
+    fontSize: 14,
     fontWeight: "600",
   },
   safeSpendCard: {
     backgroundColor: PRIMARY_GREEN,
     alignItems: "flex-start",
+    position: "relative",
+    overflow: "hidden",
+  },
+  safeSpendIllustration: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
   },
   safeSpendLabel: {
     fontSize: 12,
@@ -479,6 +563,19 @@ const styles = StyleSheet.create({
   safeSpendSubtext: {
     fontSize: 12,
     color: "#D7E9D2",
+  },
+  onTrackPill: {
+    alignSelf: "flex-start",
+    backgroundColor: "#ffffff26",
+    borderRadius: 999,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 7,
+    marginTop: Spacing.two,
+  },
+  onTrackText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   chartCard: {
     marginTop: Spacing.two,
