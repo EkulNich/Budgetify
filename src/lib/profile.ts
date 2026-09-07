@@ -25,5 +25,6 @@ export async function ensureProfileRow(user: User) {
 
   if (error) {
     console.error("Failed to create profile row:", error.message);
+    throw error;
   }
 }

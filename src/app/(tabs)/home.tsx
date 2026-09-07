@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -126,8 +127,12 @@ export default function HomeScreen() {
   );
 
   const handleDelete = async (expenseId: string) => {
-    await deleteExpense(expenseId);
-    await stats.refetch();
+    try {
+      await deleteExpense(expenseId);
+      await stats.refetch();
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
+    }
   };
 
   return (

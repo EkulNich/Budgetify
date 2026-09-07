@@ -31,7 +31,14 @@ export function usePool(poolId: number) {
   const rename = useCallback(
     async (newName: string) => {
       const oldName = pool?.name ?? "";
-      await supabase.from("groups").update({ name: newName }).eq("id", poolId);
+      const { error: renameError } = await supabase
+        .from("groups")
+        .update({ name: newName })
+        .eq("id", poolId);
+      if (renameError) {
+        console.error("Failed to rename pool:", renameError.message);
+        throw renameError;
+      }
 
       const { error } = await supabase.rpc("rename_group_expenses", {
         p_old_name: oldName,

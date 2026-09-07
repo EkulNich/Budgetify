@@ -2,7 +2,7 @@ declare const describe: any;
 declare const test: any;
 declare const expect: any;
 
-import { calculateBalances } from "../src/lib/settlements";
+import { calculateBalances, wouldOrphanSettlement } from "../src/lib/settlements";
 
 const YOU = "you";
 const ALICE = "alice";
@@ -100,5 +100,72 @@ describe("calculateBalances", () => {
             [{ from_user: ALICE, to_user: YOU, amount: 25 }],
         );
         expect(balances).toEqual([]);
+    });
+});
+
+describe("wouldOrphanSettlement", () => {
+    test("blocks deleting a fully-settled expense (the phantom-flip bug)", () => {
+        const dinner = { id: 1, amount: 100, added_by: YOU, split_between: [YOU, ALICE] };
+        const settlements = [{ from_user: ALICE, to_user: YOU, amount: 50 }];
+
+        expect(wouldOrphanSettlement(dinner, [dinner], settlements)).toBe(true);
+    });
+
+    test("allows deleting an expense with no settlements at all", () => {
+        const dinner = { id: 1, amount: 100, added_by: YOU, split_between: [YOU, ALICE] };
+
+        expect(wouldOrphanSettlement(dinner, [dinner], [])).toBe(false);
+    });
+
+    test("allows deleting an expense when another expense still covers the settlement", () => {
+        const dinner = { id: 1, amount: 100, added_by: YOU, split_between: [YOU, ALICE] };
+        const lunch = { id: 2, amount: 40, added_by: YOU, split_between: [YOU, ALICE] };
+        // Alice partially settles $20 — well within what dinner alone already covers.
+        const settlements = [{ from_user: ALICE, to_user: YOU, amount: 20 }];
+
+        expect(
+            wouldOrphanSettlement(lunch, [dinner, lunch], settlements),
+        ).toBe(false);
+    });
+
+    test("blocks deleting the expense a settlement actually depended on, even with another expense present", () => {
+        const dinner = { id: 1, amount: 100, added_by: YOU, split_between: [YOU, ALICE] };
+        const reimbursement = {
+            id: 2,
+            amount: 40,
+            added_by: ALICE,
+            split_between: [ALICE, YOU],
+        };
+        // Net raw balance is +30 (Alice owes you), fully explained by dinner.
+        // Settling $20 is fine against that net... but removing dinner leaves
+        // a reversed raw balance the settlement no longer matches.
+        const settlements = [{ from_user: ALICE, to_user: YOU, amount: 20 }];
+
+        expect(
+            wouldOrphanSettlement(dinner, [dinner, reimbursement], settlements),
+        ).toBe(true);
+    });
+
+    test("blocks deleting an expense when a settlement now exceeds the remaining debt", () => {
+        const dinner = { id: 1, amount: 100, added_by: YOU, split_between: [YOU, ALICE] };
+        const coffee = { id: 2, amount: 10, added_by: YOU, split_between: [YOU, ALICE] };
+        // Alice settles $40 — fine against the combined $55 owed, but too much
+        // for coffee's $5 share alone once dinner is removed.
+        const settlements = [{ from_user: ALICE, to_user: YOU, amount: 40 }];
+
+        expect(wouldOrphanSettlement(dinner, [dinner, coffee], settlements)).toBe(true);
+    });
+
+    test("an expense with only the payer in split_between can't orphan anything", () => {
+        const soloExpense = { id: 1, amount: 20, added_by: YOU, split_between: [YOU] };
+
+        expect(wouldOrphanSettlement(soloExpense, [soloExpense], [])).toBe(false);
+    });
+
+    test("settlements between unrelated people don't block the deletion", () => {
+        const dinner = { id: 1, amount: 100, added_by: YOU, split_between: [YOU, ALICE] };
+        const unrelatedSettlement = [{ from_user: BOB, to_user: CARL, amount: 30 }];
+
+        expect(wouldOrphanSettlement(dinner, [dinner], unrelatedSettlement)).toBe(false);
     });
 });

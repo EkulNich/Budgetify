@@ -47,7 +47,11 @@ export function useExpenses(userId: string | undefined) {
 
   const deleteExpense = useCallback(
     async (expenseId: string) => {
-      await supabase.from("expenses").delete().eq("id", expenseId);
+      const { error } = await supabase.from("expenses").delete().eq("id", expenseId);
+      if (error) {
+        console.error("Failed to delete expense:", error.message);
+        throw error;
+      }
       await refetch();
     },
     [refetch],

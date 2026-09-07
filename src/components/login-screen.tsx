@@ -8,7 +8,7 @@ import {
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Alert, Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
@@ -52,20 +52,31 @@ export default function LoginScreen() {
           token: response.data.idToken,
         });
         if (!error && data.user) {
-          await ensureProfileRow(data.user);
-          router.replace("/(tabs)/home");
+          try {
+            await ensureProfileRow(data.user);
+            router.replace("/(tabs)/home");
+          } catch (profileError) {
+            Alert.alert(
+              "Sign-in error",
+              "We signed you in but couldn't set up your profile. Please try again.",
+            );
+          }
         } else if (error) {
           console.error("Sign in error:", error.message);
+          Alert.alert("Sign-in error", error.message);
         }
       }
     } catch (error: any) {
       if (error.code === statusCodes.IN_PROGRESS) {
         // already in progress
       } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        // play services not available
+        Alert.alert(
+          "Google Play Services required",
+          "Please install or update Google Play Services to sign in.",
+        );
       } else {
-        // other error
         console.error("Google Sign In error:", JSON.stringify(error));
+        Alert.alert("Sign-in error", "Something went wrong signing in with Google.");
       }
     }
   };

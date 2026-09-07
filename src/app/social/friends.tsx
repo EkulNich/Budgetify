@@ -15,6 +15,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -45,23 +46,39 @@ export default function FriendsScreen() {
 
   const handleSendRequest = async (addresseeId: string) => {
     if (!user) return;
-    await sendFriendRequest(user.id, addresseeId);
-    setSearchResults((prev) => prev.filter((u) => u.id !== addresseeId));
+    try {
+      await sendFriendRequest(user.id, addresseeId);
+      setSearchResults((prev) => prev.filter((u) => u.id !== addresseeId));
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
+    }
   };
 
   const handleAccept = async (friendshipId: string) => {
-    await acceptFriendRequest(friendshipId);
-    refetch();
+    try {
+      await acceptFriendRequest(friendshipId);
+      refetch();
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
+    }
   };
 
   const handleDecline = async (friendshipId: string) => {
-    await removeFriendship(friendshipId);
-    refetch();
+    try {
+      await removeFriendship(friendshipId);
+      refetch();
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
+    }
   };
 
   const handleRemove = async (friendshipId: string) => {
-    await removeFriendship(friendshipId);
-    refetch();
+    try {
+      await removeFriendship(friendshipId);
+      refetch();
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
+    }
   };
 
   const alreadyFriend = (userId: string) =>

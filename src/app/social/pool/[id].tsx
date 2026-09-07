@@ -68,8 +68,12 @@ export default function PoolDetailScreen() {
   };
 
   const handleDeleteExpense = async (expense: PoolExpense) => {
-    await deleteExpense(expense, pool?.name ?? "Group Pool");
-    await Promise.all([refetchMembers(), refetchBalances()]);
+    try {
+      await deleteExpense(expense, pool?.name ?? "Group Pool");
+      await Promise.all([refetchMembers(), refetchBalances()]);
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
+    }
   };
 
   const handleInvite = async (friendId: string) => {
@@ -78,8 +82,12 @@ export default function PoolDetailScreen() {
       Alert.alert("Already a member");
       return;
     }
-    await invite(friendId, pool?.pool_limit ?? 0);
-    setInviteModalVisible(false);
+    try {
+      await invite(friendId, pool?.pool_limit ?? 0);
+      setInviteModalVisible(false);
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
+    }
   };
 
   const handleSettleUp = (balance: MemberBalance) => {

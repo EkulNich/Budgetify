@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -63,17 +64,21 @@ export function AddExpenseModal({
       ? members.map((m) => m.user_id)
       : [...form.selectedMembers];
 
-    await onSubmit({
-      description: form.description.trim(),
-      amount: convert(parseFloat(form.amount), form.currency, defaultCurrency),
-      currency: defaultCurrency,
-      category: form.category,
-      targets,
-    });
-
-    setForm(makeEmptyPoolExpenseForm(defaultCurrency));
-    setAdding(false);
-    onClose();
+    try {
+      await onSubmit({
+        description: form.description.trim(),
+        amount: convert(parseFloat(form.amount), form.currency, defaultCurrency),
+        currency: defaultCurrency,
+        category: form.category,
+        targets,
+      });
+      setForm(makeEmptyPoolExpenseForm(defaultCurrency));
+      onClose();
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
+    } finally {
+      setAdding(false);
+    }
   };
 
   return (

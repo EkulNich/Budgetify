@@ -65,11 +65,15 @@ export function usePoolMembers(poolId: number | null) {
   const invite = useCallback(
     async (friendId: string, contributionLimit: number) => {
       if (!poolId) throw new Error("Cannot invite: no pool selected");
-      await supabase.from("group_members").insert({
+      const { error } = await supabase.from("group_members").insert({
         group_id: poolId,
         user_id: friendId,
         contribution_limit: contributionLimit,
       });
+      if (error) {
+        console.error("Failed to invite member:", error.message);
+        throw error;
+      }
       await refetch();
     },
     [poolId, refetch],

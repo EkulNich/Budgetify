@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -31,9 +32,13 @@ export function RenamePoolModal({
 
   const handleSave = async () => {
     if (!newPoolName.trim()) return;
-    await onSubmit(newPoolName.trim());
-    setNewPoolName("");
-    onClose();
+    try {
+      await onSubmit(newPoolName.trim());
+      setNewPoolName("");
+      onClose();
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
+    }
   };
 
   return (

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { wouldOrphanSettlement } from "@/lib/settlements";
 import { supabase } from "@/lib/supabase";
 
 export type PoolExpense = {
@@ -87,7 +88,7 @@ export function usePoolExpenses(poolId: number | null) {
       if (!poolId) throw new Error("Cannot add expense: no pool selected");
       const splitAmount = input.amount / input.targets.length;
 
-      await supabase.from("group_expenses").insert({
+      const { error: insertError } = await supabase.from("group_expenses").insert({
         group_id: poolId,
         added_by: input.userId,
         amount: input.amount,
@@ -97,9 +98,13 @@ export function usePoolExpenses(poolId: number | null) {
         currency: input.currency,
         ...(input.createdAt ? { created_at: input.createdAt } : {}),
       });
+      if (insertError) {
+        console.error("Failed to add pool expense:", insertError.message);
+        throw insertError;
+      }
 
       for (const userId of input.targets) {
-        await supabase.rpc("insert_expense_for_user", {
+        const { error: mirrorError } = await supabase.rpc("insert_expense_for_user", {
           p_user_id: userId,
           p_amount: splitAmount,
           p_category: input.category,
@@ -108,6 +113,10 @@ export function usePoolExpenses(poolId: number | null) {
           p_currency: input.currency,
           p_created_at: input.createdAt ?? null,
         });
+        if (mirrorError) {
+          console.error("Failed to mirror personal expense:", mirrorError.message);
+          throw mirrorError;
+        }
       }
 
       await refetch();
@@ -117,7 +126,37 @@ export function usePoolExpenses(poolId: number | null) {
 
   const deleteExpense = useCallback(
     async (expense: PoolExpense, fallbackCategory: string) => {
-      await supabase.from("group_expenses").delete().eq("id", expense.id);
+      if (!poolId) throw new Error("Cannot delete expense: no pool selected");
+
+      const [{ data: allExpenses }, { data: allSettlements }] = await Promise.all([
+        supabase
+          .from("group_expenses")
+          .select("id, amount, added_by, split_between")
+          .eq("group_id", poolId),
+        supabase
+          .from("settlements")
+          .select("from_user, to_user, amount")
+          .eq("group_id", poolId),
+      ]);
+
+      const expenseRecord = (allExpenses ?? []).find((e) => e.id === expense.id);
+      if (
+        expenseRecord &&
+        wouldOrphanSettlement(expenseRecord, allExpenses ?? [], allSettlements ?? [])
+      ) {
+        throw new Error(
+          "This expense can't be deleted — a settlement has already been made based on it. Deleting it would incorrectly change who owes whom.",
+        );
+      }
+
+      const { error: deleteError } = await supabase
+        .from("group_expenses")
+        .delete()
+        .eq("id", expense.id);
+      if (deleteError) {
+        console.error("Failed to delete pool expense:", deleteError.message);
+        throw deleteError;
+      }
 
       // Older rows (added before categories existed) have no stored category —
       // they were mirrored into personal expenses under the pool's name instead.
@@ -125,12 +164,16 @@ export function usePoolExpenses(poolId: number | null) {
 
       const targets = expense.split_between ?? [expense.added_by];
       for (const userId of targets) {
-        await supabase.rpc("delete_expense_for_user", {
+        const { error: mirrorError } = await supabase.rpc("delete_expense_for_user", {
           p_user_id: userId,
           p_description: expense.description,
           p_category: category,
           p_group_id: poolId,
         });
+        if (mirrorError) {
+          console.error("Failed to delete mirrored personal expense:", mirrorError.message);
+          throw mirrorError;
+        }
       }
 
       await refetch();

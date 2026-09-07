@@ -87,9 +87,13 @@ export async function createPool(
     throw error ?? new Error("Failed to create pool");
   }
 
-  await supabase.from("group_members").insert({
+  const { error: memberError } = await supabase.from("group_members").insert({
     group_id: group.id,
     user_id: userId,
     contribution_limit: limit,
   });
+  if (memberError) {
+    console.error("Failed to add pool creator as a member:", memberError.message);
+    throw memberError;
+  }
 }

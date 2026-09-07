@@ -168,20 +168,32 @@ export async function sendFriendRequest(
   requesterId: string,
   addresseeId: string,
 ) {
-  await supabase.from("friendships").insert({
+  const { error } = await supabase.from("friendships").insert({
     requester_id: requesterId,
     addressee_id: addresseeId,
     status: "pending",
   });
+  if (error) {
+    console.error("Failed to send friend request:", error.message);
+    throw error;
+  }
 }
 
 export async function acceptFriendRequest(friendshipId: string) {
-  await supabase
+  const { error } = await supabase
     .from("friendships")
     .update({ status: "accepted" })
     .eq("id", friendshipId);
+  if (error) {
+    console.error("Failed to accept friend request:", error.message);
+    throw error;
+  }
 }
 
 export async function removeFriendship(friendshipId: string) {
-  await supabase.from("friendships").delete().eq("id", friendshipId);
+  const { error } = await supabase.from("friendships").delete().eq("id", friendshipId);
+  if (error) {
+    console.error("Failed to remove friendship:", error.message);
+    throw error;
+  }
 }
