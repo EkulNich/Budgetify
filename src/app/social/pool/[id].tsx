@@ -5,6 +5,7 @@ import { PoolHeader } from "@/components/pool/pool-header";
 import { RenamePoolModal } from "@/components/pool/rename-pool-modal";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { AnimatedProgressBar } from "@/components/ui/animated-progress-bar";
 import { Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
 import { useAcceptedFriendProfiles, usePool } from "@/hooks/data/use-pool";
@@ -14,6 +15,7 @@ import type { MemberBalance } from "@/hooks/data/use-pool-balances";
 import { usePoolBalances } from "@/hooks/data/use-pool-balances";
 import { usePoolMembers } from "@/hooks/data/use-pool-members";
 import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
+import { useAnimatedNumber } from "@/hooks/use-animated-number";
 import type { CategoryKey } from "@/constants/categories";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency } from "@/lib/format";
@@ -131,6 +133,7 @@ export default function PoolDetailScreen() {
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
   const progress = pool ? Math.min(totalSpent / pool.pool_limit, 1) : 0;
+  const animatedTotalSpent = useAnimatedNumber(totalSpent);
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#2D612A" />;
 
@@ -170,25 +173,18 @@ export default function PoolDetailScreen() {
                     fontWeight: "700",
                   }}
                 >
-                  {formatCurrency(totalSpent, currency)}
+                  {formatCurrency(animatedTotalSpent, currency)}
                 </ThemedText>
                 <ThemedText style={{ color: "#888", fontSize: 16 }}>
                   {" "}
                   / {pool ? formatCurrency(pool.pool_limit, currency) : "0.00"}
                 </ThemedText>
               </View>
-              <View style={[styles.progressBg, { marginTop: Spacing.two }]}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: `${progress * 100}%` as `${number}%`,
-                      backgroundColor:
-                        progress > 0.85 ? "#e55" : colors.backgroundElement,
-                    },
-                  ]}
-                />
-              </View>
+              <AnimatedProgressBar
+                progress={progress}
+                color={progress > 0.85 ? "#e55" : colors.backgroundElement}
+                style={{ marginTop: Spacing.two }}
+              />
             </View>
 
             {/* Balances */}
@@ -400,8 +396,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  progressBg: { height: 8, borderRadius: 4, backgroundColor: "#e0e0e0" },
-  progressFill: { height: 8, borderRadius: 4 },
   settleBtn: {
     borderWidth: 1,
     borderRadius: 8,

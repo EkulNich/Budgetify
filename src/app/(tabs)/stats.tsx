@@ -24,6 +24,7 @@ import { useCurrentUser } from "@/hooks/data/use-current-user";
 import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
 import { useMonthlyExpenses } from "@/hooks/data/use-monthly-expenses";
 import { useProfile } from "@/hooks/data/use-profile";
+import { useAnimatedNumber } from "@/hooks/use-animated-number";
 import { formatCurrency } from "@/lib/format";
 import { buildInsights } from "@/lib/insights";
 import {
@@ -154,6 +155,7 @@ export default function StatsScreen() {
 
   const projectedTotal = calculateProjectedSpending(totalSpent, daysElapsed, daysInMonth);
   const safeDailySpend = calculateSafeDailySpend(remaining, daysRemaining);
+  const animatedSafeDailySpend = useAnimatedNumber(Math.max(safeDailySpend, 0));
   const currentAvgDailySpend = calculateAverageDailySpend(totalSpent, daysElapsed);
   const previousAvgDailySpend = calculateAverageDailySpend(
     previousTotalSpent,
@@ -240,15 +242,17 @@ export default function StatsScreen() {
             </View>
 
             <StatCardRow>
-              <StatCard label="Monthly Spending" value={formatCurrency(totalSpent, currency)} />
+              <StatCard label="Monthly Spending" value={totalSpent} currency={currency} />
               <StatCard
                 label="Budget Remaining"
-                value={formatCurrency(remaining, currency)}
+                value={remaining}
+                currency={currency}
                 valueColor={remaining < 0 ? NEGATIVE_RED : undefined}
               />
               <StatCard
                 label="Projected Spending"
-                value={formatCurrency(projectedTotal, currency)}
+                value={projectedTotal}
+                currency={currency}
                 valueColor={
                   budget > 0 && projectedTotal > budget ? NEGATIVE_RED : undefined
                 }
@@ -264,7 +268,7 @@ export default function StatsScreen() {
                   adjustsFontSizeToFit
                   minimumFontScale={0.6}
                 >
-                  {formatCurrency(Math.max(safeDailySpend, 0), currency)}
+                  {formatCurrency(animatedSafeDailySpend, currency)}
                   <ThemedText style={styles.safeSpendUnit}> / day</ThemedText>
                 </ThemedText>
                 <ThemedText style={styles.safeSpendSubtext}>

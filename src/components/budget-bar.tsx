@@ -1,4 +1,6 @@
 import { StyleSheet, View } from "react-native";
+import { AnimatedProgressBar } from "@/components/ui/animated-progress-bar";
+import { useAnimatedNumber } from "@/hooks/use-animated-number";
 import { formatCurrency } from "@/lib/format";
 import { calculatePercentSpent } from "@/lib/stats";
 import { ThemedText } from "./themed-text";
@@ -11,9 +13,10 @@ type BudgetBarProps = {
 };
 
 export function BudgetBar({ spendingLimit, outflow, streak, currency }: BudgetBarProps) {
-  if (spendingLimit === undefined || outflow === undefined) return null;
   const remaining = spendingLimit - outflow;
   const percentSpent = calculatePercentSpent(outflow, spendingLimit);
+  const animatedRemaining = useAnimatedNumber(remaining);
+  const animatedPercent = useAnimatedNumber(percentSpent);
 
   return (
     <View style={styles.container}>
@@ -21,15 +24,18 @@ export function BudgetBar({ spendingLimit, outflow, streak, currency }: BudgetBa
         <ThemedText>AMOUNT REMAINING</ThemedText>
         <ThemedText> STREAK 🔥 : {streak}</ThemedText>
       </View>
-      <ThemedText type="title">{formatCurrency(remaining, currency)}</ThemedText>
+      <ThemedText type="title">{formatCurrency(animatedRemaining, currency)}</ThemedText>
 
-      <View style={styles.track}>
-        <View style={[styles.fill, { width: `${percentSpent}%` }]} />
-      </View>
+      <AnimatedProgressBar
+        progress={percentSpent / 100}
+        color="#90EE90"
+        trackColor="#4a8c6a"
+        height={6}
+      />
 
       <View style={styles.row}>
         <ThemedText>Budget: {formatCurrency(spendingLimit, currency)}</ThemedText>
-        <ThemedText>{percentSpent.toFixed(1)}% spent</ThemedText>
+        <ThemedText>{animatedPercent.toFixed(1)}% spent</ThemedText>
       </View>
     </View>
   );
@@ -42,16 +48,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     gap: 8,
     alignSelf: "stretch",
-  },
-  track: {
-    height: 6,
-    backgroundColor: "#4a8c6a",
-    borderRadius: 3,
-  },
-  fill: {
-    height: 6,
-    backgroundColor: "#90EE90",
-    borderRadius: 3,
   },
   row: {
     flexDirection: "row",

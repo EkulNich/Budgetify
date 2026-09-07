@@ -3,16 +3,21 @@ import { StyleSheet, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { Card } from "@/components/ui/card";
 import { Spacing } from "@/constants/theme";
+import { useAnimatedNumber } from "@/hooks/use-animated-number";
+import { formatCurrency } from "@/lib/format";
 
 const PRIMARY_GREEN = "#2D612A";
 
 type StatCardProps = {
   label: string;
-  value: string;
+  value: number;
+  currency: string;
   valueColor?: string;
 };
 
-export function StatCard({ label, value, valueColor }: StatCardProps) {
+export function StatCard({ label, value, currency, valueColor }: StatCardProps) {
+  const animatedValue = useAnimatedNumber(value);
+
   return (
     <Card style={styles.card}>
       <ThemedText style={styles.label}>{label}</ThemedText>
@@ -22,7 +27,7 @@ export function StatCard({ label, value, valueColor }: StatCardProps) {
         adjustsFontSizeToFit
         minimumFontScale={0.7}
       >
-        {value}
+        {formatCurrency(animatedValue, currency)}
       </ThemedText>
     </Card>
   );
