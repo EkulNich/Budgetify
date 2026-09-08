@@ -17,6 +17,10 @@ type BalanceListScreenProps = {
   currency: string;
   color: string;
   onSettle?: (balance: NamedBalance) => void;
+  onNudge?: (balance: NamedBalance) => void;
+  nudgeLabel?: string;
+  onNudgeAll?: () => void;
+  nudgeAllLabel?: string;
   emptyText: string;
 };
 
@@ -28,6 +32,10 @@ export function BalanceListScreen({
   currency,
   color,
   onSettle,
+  onNudge,
+  nudgeLabel = "Nudge",
+  onNudgeAll,
+  nudgeAllLabel = "Nudge Everyone",
   emptyText,
 }: BalanceListScreenProps) {
   const total = balances.reduce((sum, b) => sum + b.amount, 0);
@@ -55,6 +63,16 @@ export function BalanceListScreen({
             />
           )}
 
+          {onNudgeAll && balances.length > 1 && (
+            <TouchableOpacity
+              style={[styles.nudgeAllBtn, { borderColor: color }]}
+              onPress={onNudgeAll}
+            >
+              <Ionicons name="notifications-outline" size={16} color={color} />
+              <ThemedText style={[styles.nudgeAllBtnText, { color }]}>{nudgeAllLabel}</ThemedText>
+            </TouchableOpacity>
+          )}
+
           {balances.length === 0 ? (
             <ThemedText style={styles.emptyText}>{emptyText}</ThemedText>
           ) : (
@@ -71,14 +89,25 @@ export function BalanceListScreen({
                     {formatCurrency(balance.amount, currency)}
                   </ThemedText>
                 </View>
-                {onSettle && (
-                  <TouchableOpacity
-                    style={[styles.settleBtn, { backgroundColor: color }]}
-                    onPress={() => onSettle(balance)}
-                  >
-                    <ThemedText style={styles.settleBtnText}>Settle Up</ThemedText>
-                  </TouchableOpacity>
-                )}
+                <View style={styles.actions}>
+                  {onSettle && (
+                    <TouchableOpacity
+                      style={[styles.settleBtn, { backgroundColor: color }]}
+                      onPress={() => onSettle(balance)}
+                    >
+                      <ThemedText style={styles.settleBtnText}>Settle Up</ThemedText>
+                    </TouchableOpacity>
+                  )}
+                  {onNudge && (
+                    <TouchableOpacity
+                      style={[styles.nudgeBtn, { borderColor: color }]}
+                      onPress={() => onNudge(balance)}
+                    >
+                      <Ionicons name="notifications-outline" size={13} color={color} />
+                      <ThemedText style={[styles.nudgeBtnText, { color }]}>{nudgeLabel}</ThemedText>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             ))
           )}
@@ -100,6 +129,19 @@ const styles = StyleSheet.create({
   backText: {
     fontSize: 16,
     fontWeight: "600",
+  },
+  nudgeAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1.3,
+    borderRadius: 999,
+    paddingVertical: Spacing.two,
+  },
+  nudgeAllBtnText: {
+    fontWeight: "700",
+    fontSize: 14,
   },
   row: {
     flexDirection: "row",
@@ -136,6 +178,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginTop: 2,
   },
+  actions: {
+    alignItems: "flex-end",
+    gap: 6,
+  },
   settleBtn: {
     alignItems: "center",
     borderRadius: 999,
@@ -146,6 +192,19 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 14,
+  },
+  nudgeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 1.2,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 5,
+  },
+  nudgeBtnText: {
+    fontWeight: "700",
+    fontSize: 12,
   },
   emptyText: {
     color: "#888",

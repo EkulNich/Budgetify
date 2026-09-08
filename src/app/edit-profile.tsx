@@ -16,6 +16,7 @@ import { ThemedView } from "@/components/themed-view";
 import { PrimaryButton } from "@/components/ui/primary-button";
 import { SectionLabel } from "@/components/ui/section-label";
 import { TextField } from "@/components/ui/text-field";
+import { ToggleRow } from "@/components/ui/toggle-row";
 import { DEFAULT_BIO } from "@/constants/profile";
 import { Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
@@ -47,6 +48,17 @@ export default function EditProfileScreen() {
       Alert.alert("Error", (error as Error).message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTogglePrivacy = async (
+    field: "hide_budget_from_friends" | "is_private" | "discoverable",
+    value: boolean,
+  ) => {
+    try {
+      await updateProfile({ [field]: value });
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
     }
   };
 
@@ -95,6 +107,31 @@ export default function EditProfileScreen() {
               label={saving ? "Saving..." : "Save"}
               loading={saving}
               onPress={handleSave}
+            />
+
+            <View style={styles.divider} />
+
+            <SectionLabel style={{ color: colors.backgroundElement }}>Privacy</SectionLabel>
+            <ToggleRow
+              label="Hide budget from friends"
+              description="Friends won't see your budget-used % or progress bar."
+              value={profile?.hide_budget_from_friends ?? false}
+              onValueChange={(v) => handleTogglePrivacy("hide_budget_from_friends", v)}
+              colors={colors}
+            />
+            <ToggleRow
+              label="Private profile"
+              description="Hide your streak from anyone who finds you in search but isn't yet a friend."
+              value={profile?.is_private ?? false}
+              onValueChange={(v) => handleTogglePrivacy("is_private", v)}
+              colors={colors}
+            />
+            <ToggleRow
+              label="Appear in search"
+              description="Let other users find you by username to send a friend request."
+              value={profile?.discoverable ?? true}
+              onValueChange={(v) => handleTogglePrivacy("discoverable", v)}
+              colors={colors}
             />
 
             <View style={styles.divider} />

@@ -12,11 +12,14 @@ import { supabase } from "../lib/supabase";
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
 import { useResolvedColorScheme } from "@/hooks/use-theme";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { ensureProfileRow } from "@/lib/profile";
 
 export default function TabLayout() {
   const colorScheme = useResolvedColorScheme();
   const { user } = useCurrentUser();
+
+  usePushNotifications(user?.id);
 
   useEffect(() => {
     const {
@@ -41,6 +44,7 @@ export default function TabLayout() {
             <Stack.Screen name="social/pools" />
             <Stack.Screen name="social/pool/[id]" />
             <Stack.Screen name="edit-profile" />
+            <Stack.Screen name="onboarding" />
           </Stack.Protected>
           <Stack.Protected guard={!user}>
             <Stack.Screen name="login" />

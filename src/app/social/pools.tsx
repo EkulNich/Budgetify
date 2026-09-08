@@ -1,14 +1,14 @@
-import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { SelectModal } from "@/components/ui/select-modal";
 import { CURRENCIES } from "@/constants/currencies";
 import { Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
-import { useProfile } from "@/hooks/data/use-profile";
 import { createPool, usePools, type Pool } from "@/hooks/data/use-pools";
+import { useProfile } from "@/hooks/data/use-profile";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency } from "@/lib/format";
+import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -97,7 +97,10 @@ export default function PoolsScreen() {
       setModalVisible(false);
       refetch();
     } catch (error) {
-      Alert.alert("Error", "Failed to create pool: " + (error as Error).message);
+      Alert.alert(
+        "Error",
+        "Failed to create pool: " + (error as Error).message,
+      );
     } finally {
       setCreating(false);
     }
@@ -107,11 +110,17 @@ export default function PoolsScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.backRow}
+            onPress={() => router.back()}
+          >
             <Ionicons name="arrow-back" size={20} color={PRIMARY_GREEN} />
             <ThemedText style={styles.backText}>Back</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.addPoolBtn} onPress={() => setModalVisible(true)}>
+          <TouchableOpacity
+            style={styles.addPoolBtn}
+            onPress={() => setModalVisible(true)}
+          >
             <Ionicons name="add" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -147,7 +156,10 @@ export default function PoolsScreen() {
             keyboardShouldPersistTaps="handled"
           >
             {filteredPools.map((pool, index) => {
-              const rawPercent = pool.pool_limit > 0 ? (pool.total_spent / pool.pool_limit) * 100 : 0;
+              const rawPercent =
+                pool.pool_limit > 0
+                  ? (pool.total_spent / pool.pool_limit) * 100
+                  : 0;
               const barPercent = Math.min(Math.max(rawPercent, 0), 100);
               const status = poolStatus(pool);
               const meta = STATUS_META[status];
@@ -165,26 +177,51 @@ export default function PoolsScreen() {
                   onPress={() => router.push(`/social/pool/${pool.id}`)}
                 >
                   <View style={styles.cardTopRow}>
-                    <View style={[styles.avatar, { backgroundColor: avatarColors.bg }]}>
-                      <ThemedText style={[styles.avatarText, { color: avatarColors.fg }]}>
+                    <View
+                      style={[
+                        styles.avatar,
+                        { backgroundColor: avatarColors.bg },
+                      ]}
+                    >
+                      <ThemedText
+                        style={[styles.avatarText, { color: avatarColors.fg }]}
+                      >
                         {pool.name.charAt(0).toUpperCase()}
                       </ThemedText>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <ThemedText style={styles.poolName}>{pool.name}</ThemedText>
+                      <ThemedText style={styles.poolName}>
+                        {pool.name}
+                      </ThemedText>
                       <ThemedText style={styles.poolAmounts}>
                         {formatCurrency(pool.total_spent, pool.currency)} /{" "}
                         {formatCurrency(pool.pool_limit, pool.currency)}
                       </ThemedText>
                     </View>
                     <View style={styles.statusCol}>
-                      <View style={[styles.statusPill, { backgroundColor: meta.color + "14" }]}>
-                        <View style={[styles.statusDot, { backgroundColor: meta.color }]} />
-                        <ThemedText style={[styles.statusText, { color: meta.color }]}>
+                      <View
+                        style={[
+                          styles.statusPill,
+                          { backgroundColor: meta.color + "14" },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.statusDot,
+                            { backgroundColor: meta.color },
+                          ]}
+                        />
+                        <ThemedText
+                          style={[styles.statusText, { color: meta.color }]}
+                        >
                           {meta.label}
                         </ThemedText>
                       </View>
-                      <Ionicons name="chevron-forward" size={16} color="#C4C9CE" />
+                      <Ionicons
+                        name="chevron-forward"
+                        size={16}
+                        color="#C4C9CE"
+                      />
                     </View>
                   </View>
 
@@ -200,7 +237,9 @@ export default function PoolsScreen() {
                         ]}
                       />
                     </View>
-                    <ThemedText style={[styles.progressPercent, { color: meta.color }]}>
+                    <ThemedText
+                      style={[styles.progressPercent, { color: meta.color }]}
+                    >
                       {Math.round(rawPercent)}%
                     </ThemedText>
                   </View>
@@ -252,13 +291,23 @@ export default function PoolsScreen() {
                   keyboardType="numeric"
                 />
                 <TouchableOpacity
-                  style={[styles.currencyButton, { borderColor: colors.backgroundElement }]}
+                  style={[
+                    styles.currencyButton,
+                    { borderColor: colors.backgroundElement },
+                  ]}
                   onPress={() => setCurrencyPickerVisible(true)}
                 >
-                  <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600" }}>
+                  <ThemedText
+                    style={{
+                      color: colors.backgroundElement,
+                      fontWeight: "600",
+                    }}
+                  >
                     {poolCurrency}
                   </ThemedText>
-                  <ThemedText style={{ color: colors.backgroundElement }}>▾</ThemedText>
+                  <ThemedText style={{ color: colors.backgroundElement }}>
+                    ▾
+                  </ThemedText>
                 </TouchableOpacity>
               </View>
               <View style={styles.row}>
@@ -406,7 +455,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.two,
   },
-  progressBg: { flex: 1, height: 7, borderRadius: 4, backgroundColor: "#E7E7E7" },
+  progressBg: {
+    flex: 1,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#E7E7E7",
+  },
   progressFill: { height: 7, borderRadius: 4 },
   progressPercent: {
     fontSize: 12.5,

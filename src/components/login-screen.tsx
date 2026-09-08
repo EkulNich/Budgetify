@@ -12,6 +12,7 @@ import { Alert, Platform, StyleSheet, TouchableOpacity, View } from "react-nativ
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { hasSeenOnboarding } from "@/lib/onboarding";
 import { ensureProfileRow } from "@/lib/profile";
 import { supabase } from "../lib/supabase";
 
@@ -54,7 +55,8 @@ export default function LoginScreen() {
         if (!error && data.user) {
           try {
             await ensureProfileRow(data.user);
-            router.replace("/(tabs)/home");
+            const seenOnboarding = await hasSeenOnboarding(data.user.id);
+            router.replace(seenOnboarding ? "/(tabs)/home" : "/onboarding");
           } catch (profileError) {
             Alert.alert(
               "Sign-in error",

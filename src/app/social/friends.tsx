@@ -208,21 +208,29 @@ export default function FriendsScreen() {
                     🔥 {friend.streak_count} day streak
                   </ThemedText>
 
-                  <ThemedText style={styles.budgetLabel}>
-                    Budget used: <ThemedText style={styles.budgetPercent}>{friend.budget_percent_used}%</ThemedText>
-                  </ThemedText>
-                  <View style={styles.progressTrack}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          width: `${Math.min(friend.budget_percent_used, 100)}%` as `${number}%`,
-                          backgroundColor:
-                            friend.budget_percent_used > 85 ? NEGATIVE_RED : PRIMARY_GREEN,
-                        },
-                      ]}
-                    />
-                  </View>
+                  {friend.hide_budget ? (
+                    <ThemedText style={styles.budgetLabel}>
+                      Budget details hidden
+                    </ThemedText>
+                  ) : (
+                    <>
+                      <ThemedText style={styles.budgetLabel}>
+                        Budget used: <ThemedText style={styles.budgetPercent}>{friend.budget_percent_used}%</ThemedText>
+                      </ThemedText>
+                      <View style={styles.progressTrack}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            {
+                              width: `${Math.min(friend.budget_percent_used, 100)}%` as `${number}%`,
+                              backgroundColor:
+                                friend.budget_percent_used > 85 ? NEGATIVE_RED : PRIMARY_GREEN,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </>
+                  )}
                 </View>
               ))
             )}
@@ -272,9 +280,11 @@ export default function FriendsScreen() {
                       </View>
                       <View style={{ flex: 1 }}>
                         <ThemedText style={styles.friendName}>{result.username}</ThemedText>
-                        <ThemedText style={styles.streakText}>
-                          🔥 {result.streak_count ?? 0} day streak
-                        </ThemedText>
+                        {result.streak_count !== null && (
+                          <ThemedText style={styles.streakText}>
+                            🔥 {result.streak_count} day streak
+                          </ThemedText>
+                        )}
                       </View>
                       {isFriend ? (
                         <View style={styles.friendedBtn}>

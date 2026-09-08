@@ -12,6 +12,9 @@ export type Profile = {
   streak_count: number | null;
   last_expense_date: string | null;
   currency: string;
+  hide_budget_from_friends: boolean;
+  is_private: boolean;
+  discoverable: boolean;
 };
 
 /** Fetches (and lets you update) the current user's `profiles` row. */

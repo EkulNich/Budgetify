@@ -9,6 +9,7 @@ export type Friend = {
   streak_count: number;
   friendship_id: string;
   budget_percent_used: number;
+  hide_budget: boolean;
 };
 
 export type PendingRequest = {
@@ -20,7 +21,8 @@ export type PendingRequest = {
 export type FriendSearchResult = {
   id: string;
   username: string;
-  streak_count: number;
+  /** Hidden (null) when the profile has `is_private` set and isn't already a friend. */
+  streak_count: number | null;
 };
 
 /** Accepted friends and incoming pending requests, kept live via a Realtime subscription. */
@@ -67,7 +69,7 @@ export function useFriends(userId: string | undefined) {
 
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, username, bio, streak_count, budget_percent_used")
+      .select("id, username, bio, streak_count, budget_percent_used, hide_budget_from_friends")
       .in("id", friendIds);
 
     if (profiles) {
@@ -79,6 +81,7 @@ export function useFriends(userId: string | undefined) {
           streak_count: p.streak_count ?? 0,
           friendship_id: friendshipMap[p.id],
           budget_percent_used: p.budget_percent_used ?? 0,
+          hide_budget: p.hide_budget_from_friends ?? false,
         })),
       );
     }
@@ -158,12 +161,17 @@ export async function searchUsers(
 ): Promise<FriendSearchResult[]> {
   const { data } = await supabase
     .from("profiles")
-    .select("id, username, streak_count")
+    .select("id, username, streak_count, is_private")
     .ilike("username", `%${query}%`)
+    .eq("discoverable", true)
     .neq("id", excludeUserId ?? "")
     .limit(10);
 
-  return data ?? [];
+  return (data ?? []).map((p) => ({
+    id: p.id,
+    username: p.username,
+    streak_count: p.is_private ? null : p.streak_count,
+  }));
 }
 
 export async function sendFriendRequest(

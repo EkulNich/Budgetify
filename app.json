@@ -49,6 +49,7 @@
       ],
       "expo-font",
       "expo-web-browser",
+      "expo-notifications",
       "@react-native-google-signin/google-signin",
       [
         "expo-image-picker",
