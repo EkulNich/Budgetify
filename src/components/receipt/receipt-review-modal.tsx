@@ -390,6 +390,7 @@ export function ReceiptReviewModal({
             colors={colors}
             onSelect={setCurrency}
             onClose={() => setCurrencyPickerVisible(false)}
+            sortSelectedFirst
           />
 
           {assigningItem && (

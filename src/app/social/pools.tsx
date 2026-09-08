@@ -279,6 +279,7 @@ export default function PoolsScreen() {
               colors={colors}
               onSelect={setPoolCurrency}
               onClose={() => setCurrencyPickerVisible(false)}
+              sortSelectedFirst
             />
           </KeyboardAvoidingView>
         </Modal>

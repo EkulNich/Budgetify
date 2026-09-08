@@ -133,6 +133,7 @@ export function AddExpenseModal({
           colors={colors}
           onSelect={(next) => setForm((prev) => ({ ...prev, currency: next }))}
           onClose={() => setCurrencyPickerVisible(false)}
+          sortSelectedFirst
         />
       </KeyboardAvoidingView>
     </Modal>

@@ -202,7 +202,7 @@ export default function AddScreen() {
         amount: convert(parseFloat(form.amount), form.currency, defaultCurrency),
         currency: defaultCurrency,
         category: form.category,
-        description: form.category === "others" ? form.description.trim() : null,
+        description: form.description.trim() || null,
       });
       Alert.alert("Saved!", "Expense added.");
       setForm(makeEmptyPoolExpenseForm(defaultCurrency));
@@ -339,6 +339,7 @@ export default function AddScreen() {
         colors={colors}
         onSelect={setTarget}
         onClose={() => setPickerVisible(false)}
+        useNativeModal
       />
 
       <SelectModal
@@ -349,6 +350,8 @@ export default function AddScreen() {
         colors={colors}
         onSelect={(next) => setForm((prev) => ({ ...prev, currency: next }))}
         onClose={() => setCurrencyPickerVisible(false)}
+        sortSelectedFirst
+        useNativeModal
       />
 
       {reviewReceipt && (

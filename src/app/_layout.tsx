@@ -6,6 +6,7 @@ import {
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { supabase } from "../lib/supabase";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
@@ -29,20 +30,23 @@ export default function TabLayout() {
   }, []);
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <StatusBar style="dark" />
-      <AnimatedSplashOverlay />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Protected guard={!!user}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="social/friends" />
-          <Stack.Screen name="social/pools" />
-          <Stack.Screen name="social/pool/[id]" />
-        </Stack.Protected>
-        <Stack.Protected guard={!user}>
-          <Stack.Screen name="login" />
-        </Stack.Protected>
-      </Stack>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <StatusBar style="dark" />
+        <AnimatedSplashOverlay />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Protected guard={!!user}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="social/friends" />
+            <Stack.Screen name="social/pools" />
+            <Stack.Screen name="social/pool/[id]" />
+            <Stack.Screen name="edit-profile" />
+          </Stack.Protected>
+          <Stack.Protected guard={!user}>
+            <Stack.Screen name="login" />
+          </Stack.Protected>
+        </Stack>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -37,14 +37,6 @@ export const CURRENCY_OPTIONS: SelectOption[] = CURRENCIES.map((c) => ({
   label: `${c.code} — ${c.name}`,
 }));
 
-const CATEGORY_ICON_NAMES: Record<CategoryKey, keyof typeof Ionicons.glyphMap> = {
-  food: "fast-food-outline",
-  transport: "car-outline",
-  entertainment: "game-controller-outline",
-  loans: "card-outline",
-  others: "ellipsis-horizontal-circle-outline",
-};
-
 type PoolExpenseFormProps = {
   members: PoolMember[];
   colors: ThemeColors;
@@ -166,7 +158,7 @@ export function PoolExpenseForm({
                 onPress={() => onChange({ ...value, category: c.key })}
               >
                 <Ionicons
-                  name={CATEGORY_ICON_NAMES[c.key]}
+                  name={c.icon}
                   size={14}
                   color={selected ? "#fff" : colors.backgroundElement}
                 />

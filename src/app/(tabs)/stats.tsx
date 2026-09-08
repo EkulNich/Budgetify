@@ -235,9 +235,6 @@ export default function StatsScreen() {
                 <ThemedText type="title" style={styles.title}>
                   Stats
                 </ThemedText>
-                <ThemedText style={styles.subtitle}>
-                  See how you're doing this month.
-                </ThemedText>
               </View>
 
               <View style={styles.monthSelector}>
@@ -489,11 +486,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.four + 24,
   },
   title: { color: PRIMARY_GREEN },
-  subtitle: {
-    fontSize: 14,
-    color: TEXT_GREY,
-    marginTop: 2,
-  },
   divider: {
     height: 1,
     backgroundColor: "#D7D9DC",

@@ -14,8 +14,11 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Card } from "@/components/ui/card";
 import { CalendarFilterModal } from "@/components/ui/calendar-filter-modal";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
+import { getCategoryColor, getCategoryIcon } from "@/constants/categories";
 import { BottomTabInset, Spacing } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
 import type { Expense } from "@/hooks/data/use-expenses";
 import { useExpenses } from "@/hooks/data/use-expenses";
@@ -34,6 +37,7 @@ import { useCallback, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 const RECENT_EXPENSE_COUNT = 5;
+const PRIMARY_GREEN = "#2D612A";
 
 function SwipeableExpenseRow({
   expense,
@@ -43,6 +47,11 @@ function SwipeableExpenseRow({
   onDelete: (id: string) => void;
 }) {
   const isGroupExpense = expense.group_id !== null;
+  const categoryLabel = expense.category
+    ? expense.category.charAt(0).toUpperCase() + expense.category.slice(1)
+    : "Uncategorized";
+  const categoryColor = getCategoryColor(expense.category);
+  const dateLabel = formatExpenseDate(expense.created_at);
 
   return (
     <SwipeableRow
@@ -54,24 +63,20 @@ function SwipeableExpenseRow({
       onDelete={() => onDelete(expense.id)}
     >
       <ThemedView style={styles.expenseRow}>
+        <IconBadge color={categoryColor}>
+          <Ionicons name={getCategoryIcon(expense.category)} size={19} color={categoryColor} />
+        </IconBadge>
         <View style={{ flex: 1 }}>
-          <ThemedText themeColor="backgroundSelected">
-            {expense.category ?? "Uncategorized"}
-          </ThemedText>
-          {expense.description && (
-            <ThemedText type="small" themeColor="textSecondary">
-              {expense.description}
-            </ThemedText>
-          )}
-        </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <ThemedText style={{ color: "#C0392B" }}>
-            -{formatCurrency(Number(expense.amount), expense.currency)}
+          <ThemedText themeColor="backgroundSelected" style={{ fontWeight: "700" }}>
+            {expense.description || categoryLabel}
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            {formatExpenseDate(expense.created_at)}
+            {expense.description ? `${categoryLabel} · ${dateLabel}` : dateLabel}
           </ThemedText>
         </View>
+        <ThemedText style={{ color: "#C0392B", fontWeight: "700" }}>
+          -{formatCurrency(Number(expense.amount), expense.currency)}
+        </ThemedText>
       </ThemedView>
     </SwipeableRow>
   );
@@ -172,14 +177,21 @@ export default function HomeScreen() {
 
             <Card style={styles.tipCard}>
               <View style={styles.tipHeader}>
-                <ThemedText type="smallBold" themeColor="backgroundSelected">
-                  AI Smart Recommendations
-                </ThemedText>
+                <View style={styles.tipHeaderLeft}>
+                  <IconBadge color={PRIMARY_GREEN}>
+                    <Ionicons name="bulb-outline" size={20} color={PRIMARY_GREEN} />
+                  </IconBadge>
+                  <ThemedText style={styles.tipTitle}>Smart Insight</ThemedText>
+                </View>
                 {recommendations.length > 1 && (
-                  <TouchableOpacity onPress={() => setAllTipsVisible((v) => !v)}>
-                    <ThemedText type="small" style={{ color: "#2D612A" }}>
+                  <TouchableOpacity
+                    style={styles.seeAllBtn}
+                    onPress={() => setAllTipsVisible((v) => !v)}
+                  >
+                    <ThemedText style={styles.seeAllText}>
                       {allTipsVisible ? "Show Less" : "See All"}
                     </ThemedText>
+                    <Ionicons name="chevron-forward" size={14} color={PRIMARY_GREEN} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -195,8 +207,7 @@ export default function HomeScreen() {
                     <ThemedText
                       key={index}
                       type="small"
-                      themeColor="backgroundSelected"
-                      style={{ marginTop: index === 0 ? 4 : 8 }}
+                      style={{ color: "#23262B", marginTop: index === 0 ? 4 : 8 }}
                     >
                       {tip}
                     </ThemedText>
@@ -207,14 +218,14 @@ export default function HomeScreen() {
 
             <Card style={styles.expensesCard}>
               <View style={styles.expensesHeader}>
-                <ThemedText type="subtitle" themeColor="backgroundSelected">
-                  Expenses
-                </ThemedText>
+                <ThemedText style={styles.expensesTitle}>Recent Expenses</ThemedText>
                 {recentExpenses.length > RECENT_EXPENSE_COUNT && (
-                  <TouchableOpacity onPress={() => setAllExpensesVisible(true)}>
-                    <ThemedText type="small" style={{ color: "#2D612A" }}>
-                      See All
-                    </ThemedText>
+                  <TouchableOpacity
+                    style={styles.seeAllBtn}
+                    onPress={() => setAllExpensesVisible(true)}
+                  >
+                    <ThemedText style={styles.seeAllText}>See All</ThemedText>
+                    <Ionicons name="chevron-forward" size={14} color={PRIMARY_GREEN} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -351,6 +362,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  expensesTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#23262B",
+  },
+  seeAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  seeAllText: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: PRIMARY_GREEN,
+  },
   modalHeader: {
     alignSelf: "stretch",
     flexDirection: "row",
@@ -383,6 +409,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  tipHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  tipTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: PRIMARY_GREEN,
   },
   deleteBtn: {
     width: 75,

@@ -9,7 +9,6 @@ import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
 import type { NamedBalance } from "@/hooks/data/use-balances-summary";
 import { useBalancesSummary } from "@/hooks/data/use-balances-summary";
 import { useProfile } from "@/hooks/data/use-profile";
-import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency } from "@/lib/format";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -95,7 +94,6 @@ function BalanceList({
 }
 
 export default function SocialScreen() {
-  const colors = useTheme();
   const { user } = useCurrentUser();
   const { profile } = useProfile(user?.id);
   const { convert } = useExchangeRates();
@@ -143,15 +141,6 @@ export default function SocialScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View>
-            <ThemedText type="title" style={{ color: colors.backgroundElement }}>
-              Social
-            </ThemedText>
-            <ThemedText style={styles.subtitle}>
-              Split smarter. Stronger together. 🌱
-            </ThemedText>
-          </View>
-
           {owedToYou.length > 0 && (
             <View style={styles.heroCard}>
               <IconBadge color="#FFFFFF" size={52}>
@@ -229,11 +218,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1, padding: Spacing.four },
   scrollContent: { gap: Spacing.three, paddingBottom: Spacing.four },
-  subtitle: {
-    fontSize: 14,
-    color: "#7A7F87",
-    marginTop: 2,
-  },
   heroCard: {
     backgroundColor: PRIMARY_GREEN,
     borderRadius: 20,

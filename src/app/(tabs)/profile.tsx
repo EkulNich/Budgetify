@@ -1,21 +1,31 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  Keyboard,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { PrimaryButton } from "@/components/ui/primary-button";
 import { IconBadge } from "@/components/ui/icon-badge";
 import { SelectModal } from "@/components/ui/select-modal";
 import { CURRENCIES } from "@/constants/currencies";
 import { Spacing } from "@/constants/theme";
+import { DEFAULT_BIO } from "@/constants/profile";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
 import { useProfile } from "@/hooks/data/use-profile";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency } from "@/lib/format";
-import { supabase } from "@/lib/supabase";
 
 const PRIMARY_GREEN = "#2D612A";
 const TEXT_DARK = "#23262B";
@@ -25,34 +35,44 @@ const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({
   label: `${c.code} — ${c.name}`,
 }));
 
+type EditingField = "budget" | "salary" | "hours" | null;
+
 export default function ProfileScreen() {
   const { user } = useCurrentUser();
-  const { profile, updateProfile } = useProfile(user?.id);
+  const { profile, updateProfile, refetch: refetchProfile } = useProfile(user?.id);
   const colors = useTheme();
   const currency = profile?.currency ?? "SGD";
   const avatarUrl = user?.user_metadata?.avatar_url ?? null;
   const displayName =
     user?.user_metadata?.full_name ?? profile?.username ?? "You";
 
-  const [salaryInput, setSalaryInput] = useState("");
-  const [hoursInput, setHoursInput] = useState("");
-  const [budgetInput, setBudgetInput] = useState("");
-  const [budgetFocused, setBudgetFocused] = useState(false);
-  const [salaryFocused, setSalaryFocused] = useState(false);
-  const [hoursFocused, setHoursFocused] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      refetchProfile();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.id]),
+  );
+
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
   const [savingCurrency, setSavingCurrency] = useState(false);
 
-  // Keep the editable fields in sync with whatever's actually saved.
+  const [editingField, setEditingField] = useState<EditingField>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const accessoryInputRef = useRef<TextInput>(null);
+
   useEffect(() => {
-    setBudgetInput(profile?.monthly_budget != null ? String(profile.monthly_budget) : "");
-  }, [profile?.monthly_budget]);
-  useEffect(() => {
-    setSalaryInput(profile?.monthly_salary != null ? String(profile.monthly_salary) : "");
-  }, [profile?.monthly_salary]);
-  useEffect(() => {
-    setHoursInput(profile?.hours_per_week != null ? String(profile.hours_per_week) : "");
-  }, [profile?.hours_per_week]);
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) =>
+      setKeyboardHeight(e.endCoordinates.height),
+    );
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleChangeCurrency = async (newCurrency: string) => {
     setSavingCurrency(true);
@@ -65,30 +85,31 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleSaveBudget = async () => {
-    if (!budgetInput.trim()) return;
-    try {
-      await updateProfile({ monthly_budget: parseFloat(budgetInput) });
-    } catch (error) {
-      Alert.alert("Error", (error as Error).message);
-    }
+  const openEditor = (field: EditingField, currentRaw: number | null) => {
+    setEditingField(field);
+    setEditingValue(currentRaw != null ? String(currentRaw) : "");
+    requestAnimationFrame(() => accessoryInputRef.current?.focus());
   };
 
-  const handleSaveSalary = async () => {
-    if (!salaryInput.trim()) return;
-    try {
-      await updateProfile({ monthly_salary: parseFloat(salaryInput) });
-    } catch (error) {
-      Alert.alert("Error", (error as Error).message);
-    }
+  const cancelEditing = () => {
+    setEditingField(null);
+    Keyboard.dismiss();
   };
 
-  const handleSaveHours = async () => {
-    if (!hoursInput.trim()) return;
+  const handleSaveEditing = async () => {
+    if (!editingField || !editingValue.trim()) {
+      cancelEditing();
+      return;
+    }
+    const amount = parseFloat(editingValue);
     try {
-      await updateProfile({ hours_per_week: parseFloat(hoursInput) });
+      if (editingField === "budget") await updateProfile({ monthly_budget: amount });
+      if (editingField === "salary") await updateProfile({ monthly_salary: amount });
+      if (editingField === "hours") await updateProfile({ hours_per_week: amount });
     } catch (error) {
       Alert.alert("Error", (error as Error).message);
+    } finally {
+      cancelEditing();
     }
   };
 
@@ -100,16 +121,7 @@ export default function ProfileScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View>
-            <ThemedText type="title" style={{ color: colors.backgroundElement }}>
-              Profile
-            </ThemedText>
-            <ThemedText style={styles.subtitle}>
-              Manage your financial settings and make progress toward your goals.
-            </ThemedText>
-          </View>
-
-          <View style={styles.headerCard}>
+          <TouchableOpacity style={styles.headerCard} onPress={() => router.push("/edit-profile")}>
             {avatarUrl ? (
               <Image source={{ uri: avatarUrl }} style={styles.avatar} />
             ) : (
@@ -121,11 +133,12 @@ export default function ProfileScreen() {
             )}
             <View style={{ flex: 1 }}>
               <ThemedText style={styles.headerName}>{displayName}</ThemedText>
-              <ThemedText style={styles.headerTagline}>
-                Small steps. Bigger goals. 🌱
+              <ThemedText style={styles.headerTagline} numberOfLines={2}>
+                {profile?.bio || DEFAULT_BIO}
               </ThemedText>
             </View>
-          </View>
+            <Ionicons name="chevron-forward" size={16} color={PRIMARY_GREEN} />
+          </TouchableOpacity>
 
           {/* Currency */}
           <TouchableOpacity
@@ -162,27 +175,22 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            <View style={styles.valueBox}>
-              <TextInput
-                style={[styles.valueBoxInput, { textAlign: "left" }]}
-                keyboardType="numeric"
-                value={
-                  budgetFocused
-                    ? budgetInput
-                    : profile?.monthly_budget != null
-                      ? formatCurrency(profile.monthly_budget, currency)
-                      : ""
-                }
-                onFocus={() => setBudgetFocused(true)}
-                onBlur={() => setBudgetFocused(false)}
-                onChangeText={setBudgetInput}
-                onSubmitEditing={handleSaveBudget}
-                returnKeyType="done"
-                placeholder="Set a monthly budget"
-                placeholderTextColor="#B0B4BA"
-              />
+            <TouchableOpacity
+              style={styles.valueBox}
+              onPress={() => openEditor("budget", profile?.monthly_budget ?? null)}
+            >
+              <ThemedText
+                style={[
+                  styles.valueBoxText,
+                  !profile?.monthly_budget && styles.valueBoxPlaceholder,
+                ]}
+              >
+                {profile?.monthly_budget != null
+                  ? formatCurrency(profile.monthly_budget, currency)
+                  : "Set a monthly budget"}
+              </ThemedText>
               <Ionicons name="chevron-forward" size={15} color={PRIMARY_GREEN} />
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Income & Work */}
@@ -199,73 +207,44 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            <View style={styles.valueBox}>
+            <TouchableOpacity
+              style={styles.valueBox}
+              onPress={() => openEditor("salary", profile?.monthly_salary ?? null)}
+            >
               <ThemedText style={styles.valueBoxLabel}>Monthly Salary</ThemedText>
               <View style={styles.valueBoxRight}>
-                <TextInput
-                  style={[styles.valueBoxInput, styles.valueBoxInputCompact]}
-                  keyboardType="numeric"
-                  value={
-                    salaryFocused
-                      ? salaryInput
-                      : profile?.monthly_salary != null
-                        ? formatCurrency(profile.monthly_salary, currency)
-                        : ""
-                  }
-                  onFocus={() => setSalaryFocused(true)}
-                  onBlur={() => setSalaryFocused(false)}
-                  onChangeText={setSalaryInput}
-                  onSubmitEditing={handleSaveSalary}
-                  returnKeyType="done"
-                  placeholder="Not set"
-                  placeholderTextColor="#B0B4BA"
-                />
+                <ThemedText
+                  style={[
+                    styles.valueBoxText,
+                    !profile?.monthly_salary && styles.valueBoxPlaceholder,
+                  ]}
+                >
+                  {profile?.monthly_salary != null
+                    ? formatCurrency(profile.monthly_salary, currency)
+                    : "Not set"}
+                </ThemedText>
                 <Ionicons name="chevron-forward" size={15} color={PRIMARY_GREEN} />
               </View>
-            </View>
+            </TouchableOpacity>
 
-            <View style={styles.valueBox}>
+            <TouchableOpacity
+              style={styles.valueBox}
+              onPress={() => openEditor("hours", profile?.hours_per_week ?? null)}
+            >
               <ThemedText style={styles.valueBoxLabel}>Working Hours</ThemedText>
               <View style={styles.valueBoxRight}>
-                <TextInput
-                  style={[styles.valueBoxInput, styles.valueBoxInputCompact]}
-                  keyboardType="numeric"
-                  value={
-                    hoursFocused
-                      ? hoursInput
-                      : profile?.hours_per_week != null
-                        ? `${profile.hours_per_week}h/week`
-                        : ""
-                  }
-                  onFocus={() => setHoursFocused(true)}
-                  onBlur={() => setHoursFocused(false)}
-                  onChangeText={setHoursInput}
-                  onSubmitEditing={handleSaveHours}
-                  returnKeyType="done"
-                  placeholder="Not set"
-                  placeholderTextColor="#B0B4BA"
-                />
+                <ThemedText
+                  style={[
+                    styles.valueBoxText,
+                    !profile?.hours_per_week && styles.valueBoxPlaceholder,
+                  ]}
+                >
+                  {profile?.hours_per_week != null ? `${profile.hours_per_week}h/week` : "Not set"}
+                </ThemedText>
                 <Ionicons name="chevron-forward" size={15} color={PRIMARY_GREEN} />
               </View>
-            </View>
+            </TouchableOpacity>
           </View>
-
-          <PrimaryButton
-            label="Sign Out"
-            variant="danger"
-            onPress={() => {
-              Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Sign Out",
-                  style: "destructive",
-                  onPress: async () => {
-                    await supabase.auth.signOut();
-                  },
-                },
-              ]);
-            }}
-          />
         </ScrollView>
       </SafeAreaView>
 
@@ -277,7 +256,44 @@ export default function ProfileScreen() {
         colors={colors}
         onSelect={handleChangeCurrency}
         onClose={() => setCurrencyPickerVisible(false)}
+        sortSelectedFirst
+        useNativeModal
       />
+
+      {editingField && (
+        <>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={cancelEditing} />
+          <View style={[styles.accessoryBar, { bottom: keyboardHeight }]}>
+            <ThemedText style={styles.accessoryLabel}>
+              {editingField === "budget" && "Monthly budget"}
+              {editingField === "salary" && "Monthly salary"}
+              {editingField === "hours" && "Hours per week"}
+            </ThemedText>
+            <View style={styles.accessoryInputRow}>
+              {editingField !== "hours" && (
+                <ThemedText style={styles.accessoryAffix}>{currency}</ThemedText>
+              )}
+              <TextInput
+                ref={accessoryInputRef}
+                style={styles.accessoryInput}
+                keyboardType="numeric"
+                value={editingValue}
+                onChangeText={setEditingValue}
+                onSubmitEditing={handleSaveEditing}
+                returnKeyType="done"
+                placeholder="0.00"
+                placeholderTextColor="#B0B4BA"
+              />
+              {editingField === "hours" && (
+                <ThemedText style={styles.accessoryAffix}>h/week</ThemedText>
+              )}
+              <TouchableOpacity style={styles.accessoryDoneBtn} onPress={handleSaveEditing}>
+                <ThemedText style={styles.accessoryDoneText}>Done</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </>
+      )}
     </ThemedView>
   );
 }
@@ -292,23 +308,18 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     paddingBottom: Spacing.four,
   },
-  subtitle: {
-    fontSize: 14,
-    color: "#7A7F87",
-    marginTop: 2,
-  },
   headerCard: {
     backgroundColor: PRIMARY_GREEN + "14",
-    borderRadius: 18,
-    padding: Spacing.three,
+    borderRadius: 20,
+    padding: Spacing.four,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
   },
   avatarFallback: {
     backgroundColor: PRIMARY_GREEN,
@@ -316,19 +327,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarFallbackText: {
-    fontSize: 20,
+    fontSize: 28,
     fontWeight: "800",
     color: "#fff",
   },
   headerName: {
-    fontSize: 18,
+    fontSize: 21,
     fontWeight: "800",
     color: PRIMARY_GREEN,
   },
   headerTagline: {
-    fontSize: 13,
+    fontSize: 14.5,
     color: "#7A7F87",
-    marginTop: 1,
+    marginTop: 3,
   },
   settingCard: {
     backgroundColor: "#fff",
@@ -383,16 +394,63 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
-  valueBoxInput: {
-    flex: 1,
+  valueBoxText: {
     fontSize: 15,
     fontWeight: "800",
     color: PRIMARY_GREEN,
-    padding: 0,
-    textAlign: "right",
   },
-  valueBoxInputCompact: {
-    flex: 0,
-    minWidth: 110,
+  valueBoxPlaceholder: {
+    fontWeight: "500",
+    color: "#B0B4BA",
+  },
+  accessoryBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#EDEDED",
+    padding: Spacing.three,
+    gap: Spacing.one,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  accessoryLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#9AA0A8",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  accessoryInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  accessoryAffix: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: PRIMARY_GREEN,
+  },
+  accessoryInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "700",
+    color: PRIMARY_GREEN,
+    padding: 0,
+  },
+  accessoryDoneBtn: {
+    backgroundColor: PRIMARY_GREEN,
+    borderRadius: 8,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  accessoryDoneText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
   },
 });

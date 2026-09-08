@@ -16,13 +16,14 @@ export function BudgetBar({ spendingLimit, outflow, streak, currency }: BudgetBa
   const remaining = spendingLimit - outflow;
   const percentSpent = calculatePercentSpent(outflow, spendingLimit);
   const animatedRemaining = useAnimatedNumber(remaining);
+  const animatedOutflow = useAnimatedNumber(outflow);
   const animatedPercent = useAnimatedNumber(percentSpent);
 
   return (
     <View style={styles.container}>
       <View style={styles.topRow}>
-        <ThemedText>AMOUNT REMAINING</ThemedText>
-        <ThemedText> STREAK 🔥 : {streak}</ThemedText>
+        <ThemedText style={styles.label}>AMOUNT REMAINING</ThemedText>
+        <ThemedText style={styles.label}>STREAK 🔥 {streak}</ThemedText>
       </View>
       <ThemedText type="title">{formatCurrency(animatedRemaining, currency)}</ThemedText>
 
@@ -34,8 +35,15 @@ export function BudgetBar({ spendingLimit, outflow, streak, currency }: BudgetBa
       />
 
       <View style={styles.row}>
-        <ThemedText>Budget: {formatCurrency(spendingLimit, currency)}</ThemedText>
-        <ThemedText>{animatedPercent.toFixed(1)}% spent</ThemedText>
+        <View>
+          <ThemedText style={styles.spentText}>
+            {formatCurrency(animatedOutflow, currency)} spent
+          </ThemedText>
+          <ThemedText style={styles.ofBudgetText}>
+            of {formatCurrency(spendingLimit, currency)}
+          </ThemedText>
+        </View>
+        <ThemedText style={styles.percentText}>{animatedPercent.toFixed(1)}% spent</ThemedText>
       </View>
     </View>
   );
@@ -52,10 +60,32 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
   },
   topRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    color: "#D7E9D2",
+  },
+  spentText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  ofBudgetText: {
+    fontSize: 13,
+    color: "#B9D8B4",
+    marginTop: 1,
+  },
+  percentText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
 });
