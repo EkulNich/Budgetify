@@ -30,10 +30,15 @@ export function usePoolMembers(poolId: number | null) {
       .from("profiles")
       .select("id, username")
       .in("id", userIds);
-    const { data: expenseData } = await supabase
+    const { data: expenseData, error: expenseError } = await supabase
       .from("group_expenses")
       .select("split_between, split_amounts, amount")
       .eq("group_id", poolId);
+
+    if (expenseError) {
+      console.error("Failed to load pool member spend:", expenseError.message);
+      return;
+    }
 
     if (profiles) {
       setMembers(

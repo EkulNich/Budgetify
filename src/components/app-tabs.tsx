@@ -25,7 +25,7 @@ function IOSTabs() {
     <NativeTabs
       backgroundColor={colors.background}
       indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}
+      labelStyle={{ selected: { color: colors.backgroundElement } }}
       iconColor={colors.backgroundElement}
     >
       {TABS.map((tab) => (

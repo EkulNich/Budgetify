@@ -21,7 +21,10 @@ export function usePoolBalances(
         }
 
         setLoading(true);
-        const [{ data: expenseData }, { data: settlementData }] = await Promise.all([
+        const [
+            { data: expenseData, error: expenseError },
+            { data: settlementData, error: settlementError },
+        ] = await Promise.all([
             supabase
                 .from("group_expenses")
                 .select("amount, added_by, split_between, split_amounts")
@@ -31,6 +34,15 @@ export function usePoolBalances(
                 .select("from_user, to_user, amount")
                 .eq("group_id", poolId),
         ]);
+
+        if (expenseError || settlementError) {
+            console.error(
+                "Failed to load pool balances:",
+                expenseError?.message ?? settlementError?.message,
+            );
+            setLoading(false);
+            return;
+        }
 
         const raw = calculateBalances(
             currentUserId,

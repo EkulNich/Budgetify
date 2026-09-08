@@ -71,18 +71,30 @@ export function useBalancesSummary(
             return;
         }
 
-        const [{ data: groups }, { data: expenseData }, { data: settlementData }] =
-            await Promise.all([
-                supabase.from("groups").select("id, currency").in("id", poolIds),
-                supabase
-                    .from("group_expenses")
-                    .select("group_id, amount, added_by, split_between, split_amounts, currency")
-                    .in("group_id", poolIds),
-                supabase
-                    .from("settlements")
-                    .select("group_id, from_user, to_user, amount, currency")
-                    .in("group_id", poolIds),
-            ]);
+        const [
+            { data: groups, error: groupsError },
+            { data: expenseData, error: expenseError },
+            { data: settlementData, error: settlementError },
+        ] = await Promise.all([
+            supabase.from("groups").select("id, currency").in("id", poolIds),
+            supabase
+                .from("group_expenses")
+                .select("group_id, amount, added_by, split_between, split_amounts, currency")
+                .in("group_id", poolIds),
+            supabase
+                .from("settlements")
+                .select("group_id, from_user, to_user, amount, currency")
+                .in("group_id", poolIds),
+        ]);
+
+        if (groupsError || expenseError || settlementError) {
+            console.error(
+                "Failed to load balances summary:",
+                groupsError?.message ?? expenseError?.message ?? settlementError?.message,
+            );
+            setLoading(false);
+            return;
+        }
 
         poolLedgersRef.current = poolIds.map((groupId) => ({
             groupId,

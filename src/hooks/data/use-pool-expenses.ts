@@ -26,7 +26,7 @@ export function usePoolExpenses(poolId: number | null) {
       return;
     }
 
-    const { data: expenseData } = await supabase
+    const { data: expenseData, error: expenseError } = await supabase
       .from("group_expenses")
       .select(
         "id, amount, description, created_at, added_by, split_between, split_amounts, category, currency",
@@ -34,6 +34,10 @@ export function usePoolExpenses(poolId: number | null) {
       .eq("group_id", poolId)
       .order("created_at", { ascending: false });
 
+    if (expenseError) {
+      console.error("Failed to load pool expenses:", expenseError.message);
+      return;
+    }
     if (!expenseData) return;
 
     const allUserIds = [
