@@ -203,14 +203,31 @@ export default function HomeScreen() {
                 </ThemedText>
               ) : (
                 (allTipsVisible ? recommendations : recommendations.slice(0, 1)).map(
-                  (tip, index) => (
-                    <ThemedText
+                  (insight, index) => (
+                    <View
                       key={index}
-                      type="small"
-                      style={{ color: "#23262B", marginTop: index === 0 ? 4 : 8 }}
+                      style={[styles.insightRow, { marginTop: index === 0 ? 4 : 10 }]}
                     >
-                      {tip}
-                    </ThemedText>
+                      <View
+                        style={[
+                          styles.insightDot,
+                          {
+                            backgroundColor:
+                              insight.priority === "high"
+                                ? "#C0392B"
+                                : insight.priority === "low"
+                                  ? PRIMARY_GREEN
+                                  : "#9AA0A8",
+                          },
+                        ]}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={styles.insightTitle}>{insight.title}</ThemedText>
+                        <ThemedText type="small" style={styles.insightMessage}>
+                          {insight.message}
+                        </ThemedText>
+                      </View>
+                    </View>
                   ),
                 )
               )}
@@ -419,6 +436,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     color: PRIMARY_GREEN,
+  },
+  insightRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  insightDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 5,
+    flexShrink: 0,
+  },
+  insightTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#23262B",
+  },
+  insightMessage: {
+    color: "#4A4F56",
+    marginTop: 1,
   },
   deleteBtn: {
     width: 75,
