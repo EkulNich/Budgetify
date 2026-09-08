@@ -15,10 +15,17 @@ import { SelectModal } from "@/components/ui/select-modal";
 import type { CategoryKey } from "@/constants/categories";
 import type { ThemeColors } from "@/constants/theme";
 import type { PoolMember } from "@/hooks/data/use-pool-members";
+import { formatCurrency } from "@/lib/format";
+import {
+  calculateSplitAmounts,
+  validateExactSplit,
+  validatePercentageSplit,
+} from "@/lib/split";
 import {
   CURRENCY_OPTIONS,
   makeEmptyPoolExpenseForm,
   PoolExpenseForm,
+  resolveSplitTargets,
 } from "./pool-expense-form";
 
 type AddExpenseModalProps = {
@@ -35,6 +42,7 @@ type AddExpenseModalProps = {
     currency: string;
     category: CategoryKey;
     targets: string[];
+    splitAmounts: Record<string, number>;
   }) => Promise<void>;
 };
 
@@ -57,20 +65,53 @@ export function AddExpenseModal({
     if (!form.amount.trim() || !form.description.trim() || !form.category) {
       return;
     }
+
+    const targets = resolveSplitTargets(form.selectedMembers, members);
+    const totalAmount = parseFloat(form.amount);
+
+    if (form.splitMode === "exact") {
+      const validation = validateExactSplit(totalAmount, targets, form.customAmounts);
+      if (!validation.valid) {
+        Alert.alert(
+          "Amounts don't add up",
+          `The amounts you entered are ${validation.remaining > 0 ? "short by" : "over by"} ${formatCurrency(Math.abs(validation.remaining), form.currency)}. Make them add up to the total before saving.`,
+        );
+        return;
+      }
+    } else if (form.splitMode === "percentage") {
+      const validation = validatePercentageSplit(targets, form.customPercentages);
+      if (!validation.valid) {
+        Alert.alert(
+          "Percentages don't add up to 100%",
+          `Your percentages are ${validation.remaining > 0 ? "short by" : "over by"} ${Math.abs(validation.remaining).toFixed(0)}%. Make them add up to 100% before saving.`,
+        );
+        return;
+      }
+    }
+
     setAdding(true);
-
-    const isSplitAll = form.selectedMembers.has("split");
-    const targets = isSplitAll
-      ? members.map((m) => m.user_id)
-      : [...form.selectedMembers];
-
     try {
+      const rawSplitAmounts = calculateSplitAmounts(
+        totalAmount,
+        targets,
+        form.splitMode,
+        form.customAmounts,
+        form.customPercentages,
+      );
+      const splitAmounts = Object.fromEntries(
+        Object.entries(rawSplitAmounts).map(([id, shareAmount]) => [
+          id,
+          convert(shareAmount, form.currency, defaultCurrency),
+        ]),
+      );
+
       await onSubmit({
         description: form.description.trim(),
-        amount: convert(parseFloat(form.amount), form.currency, defaultCurrency),
+        amount: convert(totalAmount, form.currency, defaultCurrency),
         currency: defaultCurrency,
         category: form.category,
         targets,
+        splitAmounts,
       });
       setForm(makeEmptyPoolExpenseForm(defaultCurrency));
       onClose();

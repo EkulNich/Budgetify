@@ -24,7 +24,7 @@ export function usePoolBalances(
         const [{ data: expenseData }, { data: settlementData }] = await Promise.all([
             supabase
                 .from("group_expenses")
-                .select("amount, added_by, split_between")
+                .select("amount, added_by, split_between, split_amounts")
                 .eq("group_id", poolId),
             supabase
                 .from("settlements")

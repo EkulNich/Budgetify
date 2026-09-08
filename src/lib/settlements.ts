@@ -4,6 +4,13 @@ type ExpenseForBalance = {
     amount: number;
     added_by: string;
     split_between: string[] | null;
+    /**
+     * Per-person share for a custom (exact-amount or percentage) split. When
+     * absent, every target is assumed to owe an equal share — true for both
+     * an equal-split expense and any row recorded before custom splits
+     * existed.
+     */
+    split_amounts?: Record<string, number> | null;
 };
 
 /**
@@ -38,10 +45,11 @@ export function calculateBalances(
         const targets = expense.split_between ?? [];
         if (targets.length === 0) continue;
 
-        const share = expense.amount / targets.length;
+        const equalShare = expense.amount / targets.length;
         for (const target of targets) {
             if (target === expense.added_by) continue;
 
+            const share = expense.split_amounts?.[target] ?? equalShare;
             if (expense.added_by === currentUserId) {
                 balances[target] = (balances[target] ?? 0) + share;
             } else if (target === currentUserId) {

@@ -63,6 +63,7 @@ export default function PoolDetailScreen() {
     currency: string;
     category: CategoryKey;
     targets: string[];
+    splitAmounts: Record<string, number>;
   }) => {
     if (!user) return;
     await addExpense({ userId: user.id, ...input });

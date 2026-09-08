@@ -101,6 +101,58 @@ describe("calculateBalances", () => {
         );
         expect(balances).toEqual([]);
     });
+
+    test("a custom exact split uses each person's own share, not an equal division", () => {
+        const balances = calculateBalances(
+            YOU,
+            [
+                {
+                    amount: 100,
+                    added_by: YOU,
+                    split_between: [YOU, ALICE, BOB],
+                    split_amounts: { [YOU]: 50, [ALICE]: 30, [BOB]: 20 },
+                },
+            ],
+            [],
+        );
+        expect(balances).toEqual(
+            expect.arrayContaining([
+                { userId: ALICE, amount: 30 },
+                { userId: BOB, amount: 20 },
+            ]),
+        );
+        expect(balances).toHaveLength(2);
+    });
+
+    test("a custom percentage-derived split is honored the same way", () => {
+        const balances = calculateBalances(
+            YOU,
+            [
+                {
+                    amount: 200,
+                    added_by: ALICE,
+                    split_between: [ALICE, YOU],
+                    split_amounts: { [ALICE]: 150, [YOU]: 50 },
+                },
+            ],
+            [],
+        );
+        expect(balances).toEqual([{ userId: ALICE, amount: -50 }]);
+    });
+
+    test("an expense with no split_amounts still falls back to an equal share", () => {
+        const balances = calculateBalances(
+            YOU,
+            [{ amount: 90, added_by: YOU, split_between: [YOU, ALICE, BOB] }],
+            [],
+        );
+        expect(balances).toEqual(
+            expect.arrayContaining([
+                { userId: ALICE, amount: 30 },
+                { userId: BOB, amount: 30 },
+            ]),
+        );
+    });
 });
 
 describe("wouldOrphanSettlement", () => {

@@ -11,6 +11,7 @@ export type PoolExpense = {
   added_by: string;
   added_by_username: string;
   split_between: string[] | null;
+  split_amounts: Record<string, number> | null;
   split_usernames: string[];
   category: string | null;
   currency: string;
@@ -28,7 +29,7 @@ export function usePoolExpenses(poolId: number | null) {
     const { data: expenseData } = await supabase
       .from("group_expenses")
       .select(
-        "id, amount, description, created_at, added_by, split_between, category, currency",
+        "id, amount, description, created_at, added_by, split_between, split_amounts, category, currency",
       )
       .eq("group_id", poolId)
       .order("created_at", { ascending: false });
@@ -58,6 +59,7 @@ export function usePoolExpenses(poolId: number | null) {
           added_by_username:
             profiles.find((p) => p.id === e.added_by)?.username ?? "Unknown",
           split_between: e.split_between,
+          split_amounts: e.split_amounts ?? null,
           split_usernames: (e.split_between ?? []).map(
             (uid: string) =>
               profiles.find((p) => p.id === uid)?.username ?? "Unknown",
@@ -82,11 +84,17 @@ export function usePoolExpenses(poolId: number | null) {
       currency: string;
       description: string;
       targets: string[];
+      /**
+       * Per-target share for a custom (exact-amount or percentage) split.
+       * Omit for an equal split — each target gets `amount / targets.length`.
+       */
+      splitAmounts?: Record<string, number>;
       /** Overrides created_at (e.g. a scanned receipt's printed date). Defaults to now. */
       createdAt?: string;
     }) => {
       if (!poolId) throw new Error("Cannot add expense: no pool selected");
-      const splitAmount = input.amount / input.targets.length;
+      const equalShare = input.amount / input.targets.length;
+      const shareFor = (userId: string) => input.splitAmounts?.[userId] ?? equalShare;
 
       const { error: insertError } = await supabase.from("group_expenses").insert({
         group_id: poolId,
@@ -94,6 +102,7 @@ export function usePoolExpenses(poolId: number | null) {
         amount: input.amount,
         description: input.description,
         split_between: input.targets,
+        split_amounts: input.splitAmounts ?? null,
         category: input.category,
         currency: input.currency,
         ...(input.createdAt ? { created_at: input.createdAt } : {}),
@@ -106,7 +115,7 @@ export function usePoolExpenses(poolId: number | null) {
       for (const userId of input.targets) {
         const { error: mirrorError } = await supabase.rpc("insert_expense_for_user", {
           p_user_id: userId,
-          p_amount: splitAmount,
+          p_amount: shareFor(userId),
           p_category: input.category,
           p_description: input.description,
           p_group_id: poolId,
@@ -131,7 +140,7 @@ export function usePoolExpenses(poolId: number | null) {
       const [{ data: allExpenses }, { data: allSettlements }] = await Promise.all([
         supabase
           .from("group_expenses")
-          .select("id, amount, added_by, split_between")
+          .select("id, amount, added_by, split_between, split_amounts")
           .eq("group_id", poolId),
         supabase
           .from("settlements")

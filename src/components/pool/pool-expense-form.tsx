@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
 import { Alert, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
@@ -10,6 +9,11 @@ import type { ThemeColors } from "@/constants/theme";
 import { Spacing } from "@/constants/theme";
 import type { PoolMember } from "@/hooks/data/use-pool-members";
 import { formatCurrency } from "@/lib/format";
+import {
+  validateExactSplit,
+  validatePercentageSplit,
+  type SplitMode,
+} from "@/lib/split";
 
 export type PoolExpenseFormValue = {
   description: string;
@@ -17,6 +21,11 @@ export type PoolExpenseFormValue = {
   currency: string;
   category: CategoryKey | null;
   selectedMembers: Set<string>;
+  splitMode: SplitMode;
+  /** user_id -> entered exact amount, only meaningful when splitMode is "exact". */
+  customAmounts: Record<string, string>;
+  /** user_id -> entered percentage, only meaningful when splitMode is "percentage". */
+  customPercentages: Record<string, string>;
 };
 
 /** An empty form, defaulting its currency to the relevant profile/pool default. */
@@ -29,7 +38,20 @@ export function makeEmptyPoolExpenseForm(
     currency: defaultCurrency,
     category: null,
     selectedMembers: new Set(["split"]),
+    splitMode: "equal",
+    customAmounts: {},
+    customPercentages: {},
   };
+}
+
+/** Expands the "split all" sentinel into every pool member's id. */
+export function resolveSplitTargets(
+  selectedMembers: Set<string>,
+  members: PoolMember[],
+): string[] {
+  return selectedMembers.has("split")
+    ? members.map((m) => m.user_id)
+    : [...selectedMembers];
 }
 
 export const CURRENCY_OPTIONS: SelectOption[] = CURRENCIES.map((c) => ({
@@ -67,8 +89,10 @@ export function PoolExpenseForm({
   showAssignTo = true,
   onOpenCurrencyPicker,
 }: PoolExpenseFormProps) {
-  const { description, amount, currency, category, selectedMembers } = value;
+  const { description, amount, currency, category, selectedMembers, splitMode } = value;
   const isSplitAll = selectedMembers.has("split");
+  const targets = resolveSplitTargets(selectedMembers, members);
+  const totalAmount = parseFloat(amount || "0") || 0;
 
   const toggleMember = (userId: string) => {
     const next = new Set(selectedMembers);
@@ -84,6 +108,18 @@ export function PoolExpenseForm({
 
   const toggleSplitAll = () =>
     onChange({ ...value, selectedMembers: new Set(["split"]) });
+
+  const setCustomAmount = (userId: string, text: string) =>
+    onChange({ ...value, customAmounts: { ...value.customAmounts, [userId]: text } });
+
+  const setCustomPercentage = (userId: string, text: string) =>
+    onChange({
+      ...value,
+      customPercentages: { ...value.customPercentages, [userId]: text },
+    });
+
+  const exactValidation = validateExactSplit(totalAmount, targets, value.customAmounts);
+  const percentValidation = validatePercentageSplit(targets, value.customPercentages);
 
   return (
     <View style={styles.container}>
@@ -187,7 +223,7 @@ export function PoolExpenseForm({
                 onPress={() =>
                   Alert.alert(
                     "Split among",
-                    "Split equally divides the amount evenly across everyone selected below.",
+                    "Split equally divides the amount evenly across everyone selected below. Custom lets you set an exact amount or percentage per person.",
                   )
                 }
               >
@@ -195,21 +231,42 @@ export function PoolExpenseForm({
               </TouchableOpacity>
             </View>
             <View style={[styles.splitToggle, { backgroundColor: colors.backgroundElement + "0D" }]}>
-              <View style={[styles.splitToggleOption, { backgroundColor: colors.backgroundElement }]}>
-                <ThemedText style={{ fontSize: 12.5, fontWeight: "700", color: "#fff" }}>
+              <TouchableOpacity
+                style={[
+                  styles.splitToggleOption,
+                  splitMode === "equal" && { backgroundColor: colors.backgroundElement },
+                ]}
+                onPress={() => onChange({ ...value, splitMode: "equal" })}
+              >
+                <ThemedText
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: "700",
+                    color: splitMode === "equal" ? "#fff" : "#7A7F87",
+                  }}
+                >
                   Split equally
                 </ThemedText>
-              </View>
+              </TouchableOpacity>
               <TouchableOpacity
-                style={styles.splitToggleOption}
+                style={[
+                  styles.splitToggleOption,
+                  splitMode !== "equal" && { backgroundColor: colors.backgroundElement },
+                ]}
                 onPress={() =>
-                  Alert.alert(
-                    "Custom split",
-                    "Splitting by a custom amount per person isn't available yet — for now every expense is split equally.",
-                  )
+                  onChange({
+                    ...value,
+                    splitMode: value.splitMode === "equal" ? "exact" : value.splitMode,
+                  })
                 }
               >
-                <ThemedText style={{ fontSize: 12.5, fontWeight: "700", color: "#7A7F87" }}>
+                <ThemedText
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: "700",
+                    color: splitMode !== "equal" ? "#fff" : "#7A7F87",
+                  }}
+                >
                   Custom
                 </ThemedText>
               </TouchableOpacity>
@@ -274,15 +331,139 @@ export function PoolExpenseForm({
               })}
             </View>
           </ScrollView>
-          {!isSplitAll && selectedMembers.size > 0 && (
+
+          {splitMode === "equal" && !isSplitAll && selectedMembers.size > 0 && (
             <ThemedText style={{ color: "#888", fontSize: 12 }}>
-              {formatCurrency(
-                parseFloat(amount || "0") / selectedMembers.size,
-                currency,
-              )}{" "}
-              each ({selectedMembers.size}{" "}
-              {selectedMembers.size === 1 ? "person" : "people"})
+              {formatCurrency(totalAmount / selectedMembers.size, currency)} each (
+              {selectedMembers.size} {selectedMembers.size === 1 ? "person" : "people"})
             </ThemedText>
+          )}
+
+          {splitMode !== "equal" && (
+            <View style={styles.customSplitSection}>
+              <View
+                style={[
+                  styles.splitToggle,
+                  { backgroundColor: colors.backgroundElement + "0D", alignSelf: "flex-start" },
+                ]}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.splitToggleOption,
+                    splitMode === "exact" && { backgroundColor: colors.backgroundElement },
+                  ]}
+                  onPress={() => onChange({ ...value, splitMode: "exact" })}
+                >
+                  <ThemedText
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: "700",
+                      color: splitMode === "exact" ? "#fff" : "#7A7F87",
+                    }}
+                  >
+                    Exact Amount
+                  </ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.splitToggleOption,
+                    splitMode === "percentage" && { backgroundColor: colors.backgroundElement },
+                  ]}
+                  onPress={() => onChange({ ...value, splitMode: "percentage" })}
+                >
+                  <ThemedText
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: "700",
+                      color: splitMode === "percentage" ? "#fff" : "#7A7F87",
+                    }}
+                  >
+                    Percentage
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+
+              {targets.map((userId) => {
+                const username =
+                  members.find((m) => m.user_id === userId)?.username ?? "Unknown";
+                const rawValue =
+                  splitMode === "exact"
+                    ? value.customAmounts[userId] ?? ""
+                    : value.customPercentages[userId] ?? "";
+                return (
+                  <View key={userId} style={styles.customSplitRow}>
+                    <ThemedText
+                      style={[styles.customSplitName, { color: colors.backgroundElement }]}
+                    >
+                      {username}
+                    </ThemedText>
+                    <View
+                      style={[
+                        styles.iconInputRow,
+                        styles.customSplitInputRow,
+                        {
+                          borderColor: colors.backgroundElement,
+                          backgroundColor: colors.backgroundElement + "0D",
+                        },
+                      ]}
+                    >
+                      {splitMode === "exact" && (
+                        <ThemedText style={{ color: "#888", fontSize: 15, fontWeight: "700" }}>
+                          $
+                        </ThemedText>
+                      )}
+                      <TextInput
+                        style={[
+                          styles.iconInputField,
+                          styles.customSplitInputField,
+                          { color: colors.backgroundElement },
+                        ]}
+                        placeholder="0"
+                        placeholderTextColor="#B0B4BA"
+                        value={rawValue}
+                        onChangeText={(text) =>
+                          splitMode === "exact"
+                            ? setCustomAmount(userId, text)
+                            : setCustomPercentage(userId, text)
+                        }
+                        keyboardType="numeric"
+                      />
+                      {splitMode === "percentage" && (
+                        <ThemedText style={{ color: "#888", fontSize: 15, fontWeight: "700" }}>
+                          %
+                        </ThemedText>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+
+              {splitMode === "exact" && (
+                <ThemedText
+                  style={[
+                    styles.splitTotalText,
+                    { color: exactValidation.valid ? "#2D612A" : "#C0392B" },
+                  ]}
+                >
+                  {formatCurrency(exactValidation.total, currency)} of{" "}
+                  {formatCurrency(totalAmount, currency)} assigned
+                  {!exactValidation.valid &&
+                    ` (${exactValidation.remaining > 0 ? "short by" : "over by"} ${formatCurrency(Math.abs(exactValidation.remaining), currency)})`}
+                </ThemedText>
+              )}
+              {splitMode === "percentage" && (
+                <ThemedText
+                  style={[
+                    styles.splitTotalText,
+                    { color: percentValidation.valid ? "#2D612A" : "#C0392B" },
+                  ]}
+                >
+                  {percentValidation.total.toFixed(0)}% of 100% assigned
+                  {!percentValidation.valid &&
+                    ` (${percentValidation.remaining > 0 ? "short by" : "over by"} ${Math.abs(percentValidation.remaining).toFixed(0)}%)`}
+                </ThemedText>
+              )}
+            </View>
           )}
         </View>
       )}
@@ -365,5 +546,36 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.one,
+  },
+  customSplitSection: {
+    gap: Spacing.two,
+    marginTop: Spacing.one,
+  },
+  customSplitRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.two,
+  },
+  customSplitName: {
+    fontSize: 14,
+    fontWeight: "600",
+    flex: 1,
+  },
+  customSplitInputRow: {
+    flex: 0,
+    width: 120,
+    paddingHorizontal: Spacing.two,
+  },
+  customSplitInputField: {
+    paddingVertical: Spacing.one,
+    fontSize: 15,
+    fontWeight: "700",
+    textAlign: "right",
+  },
+  splitTotalText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    marginTop: 2,
   },
 });

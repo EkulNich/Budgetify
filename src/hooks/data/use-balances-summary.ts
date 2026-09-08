@@ -8,9 +8,29 @@ export type NamedBalance = { userId: string; username: string; amount: number };
 type PoolLedger = {
     groupId: number;
     currency: string;
-    expenses: { amount: number; added_by: string; split_between: string[] | null }[];
+    expenses: {
+        amount: number;
+        added_by: string;
+        split_between: string[] | null;
+        split_amounts: Record<string, number> | null;
+    }[];
     settlements: { from_user: string; to_user: string; amount: number }[];
 };
+
+function convertSplitAmounts(
+    splitAmounts: Record<string, number> | null | undefined,
+    convert: (amount: number, from: string, to: string) => number,
+    from: string,
+    to: string,
+): Record<string, number> | null {
+    if (!splitAmounts) return null;
+    return Object.fromEntries(
+        Object.entries(splitAmounts).map(([userId, amount]) => [
+            userId,
+            convert(Number(amount) || 0, from, to),
+        ]),
+    );
+}
 
 /**
  * Net balances against every other person, combined across every pool the
@@ -56,7 +76,7 @@ export function useBalancesSummary(
                 supabase.from("groups").select("id, currency").in("id", poolIds),
                 supabase
                     .from("group_expenses")
-                    .select("group_id, amount, added_by, split_between, currency")
+                    .select("group_id, amount, added_by, split_between, split_amounts, currency")
                     .in("group_id", poolIds),
                 supabase
                     .from("settlements")
@@ -74,6 +94,7 @@ export function useBalancesSummary(
         const convertedExpenses = (expenseData ?? []).map((e) => ({
             ...e,
             amount: convert(Number(e.amount) || 0, e.currency, currency),
+            split_amounts: convertSplitAmounts(e.split_amounts, convert, e.currency, currency),
         }));
         const convertedSettlements = (settlementData ?? []).map((s) => ({
             ...s,

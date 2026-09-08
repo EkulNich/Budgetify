@@ -93,11 +93,7 @@ export default function HomeScreen() {
     deleteExpense,
     refetch: refetchExpenses,
   } = useExpenses(user?.id);
-  const {
-    recommendations,
-    loading: tipsLoading,
-    refetch: refetchTips,
-  } = useRecommendations(user?.id);
+  const { recommendations, loading: tipsLoading } = useRecommendations(user?.id);
   const [allExpensesVisible, setAllExpensesVisible] = useState(false);
   const [allTipsVisible, setAllTipsVisible] = useState(false);
   const [dateFilter, setDateFilter] = useState<string | null>(null);
@@ -125,9 +121,9 @@ export default function HomeScreen() {
     useCallback(() => {
       stats.refetch();
       refetchExpenses();
-      refetchTips();
-      // Re-fetch every time this tab regains focus (e.g. after adding an expense),
-      // not just on first mount.
+      // Smart Insights are deliberately NOT re-fetched here — they're cached
+      // for 24h server-side, and re-checking on every tab focus caused a
+      // visible flash back to "no recommendations" before the cache landed.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]),
   );

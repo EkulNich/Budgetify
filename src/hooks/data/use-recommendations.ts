@@ -54,10 +54,14 @@ export function useRecommendations(userId: string | undefined) {
     const { expenses: previousMonthExpenses } = useMonthlyExpenses(userId, previousMonth);
 
     const refetch = useCallback(async () => {
-        if (!userId || !profile) {
+        if (!userId) {
             setRecommendations([]);
             return;
         }
+        // profile hasn't loaded yet — wait rather than wiping out whatever's
+        // already showing; `profile` becoming non-null changes `refetch`'s
+        // identity and re-runs the effect below automatically.
+        if (!profile) return;
 
         const { data: cached } = await supabase
             .from("ai_tips")

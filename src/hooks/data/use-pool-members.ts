@@ -32,7 +32,7 @@ export function usePoolMembers(poolId: number | null) {
       .in("id", userIds);
     const { data: expenseData } = await supabase
       .from("group_expenses")
-      .select("split_between, amount")
+      .select("split_between, split_amounts, amount")
       .eq("group_id", poolId);
 
     if (profiles) {
@@ -41,10 +41,9 @@ export function usePoolMembers(poolId: number | null) {
           const spent =
             expenseData?.reduce((sum, e) => {
               if (!e.split_between) return sum;
-              if (e.split_between.includes(m.user_id)) {
-                return sum + e.amount / e.split_between.length;
-              }
-              return sum;
+              if (!e.split_between.includes(m.user_id)) return sum;
+              const share = e.split_amounts?.[m.user_id] ?? e.amount / e.split_between.length;
+              return sum + share;
             }, 0) ?? 0;
           return {
             user_id: m.user_id,
