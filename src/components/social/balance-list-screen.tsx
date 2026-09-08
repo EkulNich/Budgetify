@@ -1,4 +1,4 @@
-import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Spacing } from "@/constants/theme";
@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/format";
 import { router } from "expo-router";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MoneySummaryCard } from "./money-summary-card";
 
 type BalanceListScreenProps = {
   summaryLabel: string;
@@ -44,32 +45,14 @@ export function BalanceListScreen({
           </TouchableOpacity>
 
           {balances.length > 0 && (
-            <View style={[styles.summaryCard, { backgroundColor: color + "1F" }]}>
-              <View style={[styles.circleLg, { backgroundColor: color + "14" }]} />
-              <View style={[styles.circleSm, { backgroundColor: color + "12" }]} />
-              <View style={styles.summaryRow}>
-                <View>
-                  <ThemedText style={[styles.summaryLabel, { color }]}>
-                    {summaryLabel}
-                  </ThemedText>
-                  <ThemedText style={[styles.summaryValue, { color }]}>
-                    {formatCurrency(total, currency)}
-                  </ThemedText>
-                  <ThemedText style={[styles.summarySubtext, { color }]}>
-                    Across {balances.length} {balances.length === 1 ? "person" : "people"}
-                  </ThemedText>
-                </View>
-                <View style={styles.summaryIconWrap}>
-                  <FontAwesome5 name="coins" size={38} color={color} />
-                  <Ionicons
-                    name={summaryIcon === "down" ? "arrow-down-circle" : "sparkles"}
-                    size={16}
-                    color={color}
-                    style={styles.summarySparkle}
-                  />
-                </View>
-              </View>
-            </View>
+            <MoneySummaryCard
+              label={summaryLabel}
+              amount={total}
+              currency={currency}
+              subtext={`Across ${balances.length} ${balances.length === 1 ? "person" : "people"}`}
+              color={color}
+              icon={summaryIcon}
+            />
           )}
 
           {balances.length === 0 ? (
@@ -108,69 +91,15 @@ export function BalanceListScreen({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1, padding: Spacing.four },
-  scrollContent: { paddingBottom: Spacing.four },
+  scrollContent: { gap: Spacing.three, paddingBottom: Spacing.four },
   backRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginBottom: Spacing.three,
   },
   backText: {
     fontSize: 16,
     fontWeight: "600",
-  },
-  summaryCard: {
-    borderRadius: 24,
-    padding: Spacing.four,
-    marginBottom: Spacing.three,
-    overflow: "hidden",
-  },
-  circleLg: {
-    position: "absolute",
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    top: -60,
-    right: -40,
-  },
-  circleSm: {
-    position: "absolute",
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    bottom: -50,
-    right: 30,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  summaryLabel: {
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    opacity: 0.75,
-  },
-  summaryValue: {
-    fontSize: 34,
-    lineHeight: 42,
-    fontWeight: "800",
-    marginTop: 4,
-  },
-  summarySubtext: {
-    fontSize: 14,
-    opacity: 0.75,
-    marginTop: 2,
-  },
-  summaryIconWrap: {
-    marginTop: 4,
-  },
-  summarySparkle: {
-    position: "absolute",
-    top: -10,
-    right: -10,
   },
   row: {
     flexDirection: "row",
@@ -179,7 +108,6 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     backgroundColor: "#fff",
     borderRadius: 20,
-    marginBottom: Spacing.two,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,

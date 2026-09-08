@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { SelectModal } from "@/components/ui/select-modal";
@@ -5,7 +6,7 @@ import { CURRENCIES } from "@/constants/currencies";
 import { Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
 import { useProfile } from "@/hooks/data/use-profile";
-import { createPool, usePools } from "@/hooks/data/use-pools";
+import { createPool, usePools, type Pool } from "@/hooks/data/use-pools";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency } from "@/lib/format";
 import { router, useFocusEffect } from "expo-router";
@@ -28,6 +29,26 @@ const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({
   value: c.code,
   label: `${c.code} — ${c.name}`,
 }));
+
+const PRIMARY_GREEN = "#2D612A";
+const NEGATIVE_RED = "#C0392B";
+const TEXT_DARK = "#23262B";
+const TEXT_MUTED = "#9AA0A8";
+const UNUSED_GREY = "#8A8F98";
+
+type PoolStatus = "overspent" | "on-track" | "unused";
+
+function poolStatus(pool: Pool): PoolStatus {
+  if (pool.total_spent <= 0) return "unused";
+  if (pool.total_spent > pool.pool_limit) return "overspent";
+  return "on-track";
+}
+
+const STATUS_META: Record<PoolStatus, { label: string; color: string }> = {
+  overspent: { label: "Overspent", color: NEGATIVE_RED },
+  "on-track": { label: "On track", color: PRIMARY_GREEN },
+  unused: { label: "Unused", color: UNUSED_GREY },
+};
 
 export default function PoolsScreen() {
   const colors = useTheme();
@@ -86,47 +107,27 @@ export default function PoolsScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <TouchableOpacity style={{ width: 70 }} onPress={() => router.back()}>
-            <ThemedText
-              style={{
-                color: colors.backgroundElement,
-                fontSize: 16,
-                fontWeight: "600",
-              }}
-            >
-              ← Back
-            </ThemedText>
+          <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={20} color={PRIMARY_GREEN} />
+            <ThemedText style={styles.backText}>Back</ThemedText>
           </TouchableOpacity>
-          <ThemedText type="title" style={{ color: colors.backgroundElement }}>
-            Pools
-          </ThemedText>
-          <TouchableOpacity
-            style={{ width: 70, alignItems: "flex-end" }}
-            onPress={() => setModalVisible(true)}
-          >
-            <ThemedText
-              style={{ color: colors.backgroundElement, fontSize: 24 }}
-            >
-              +
-            </ThemedText>
+          <TouchableOpacity style={styles.addPoolBtn} onPress={() => setModalVisible(true)}>
+            <Ionicons name="add" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
 
         {pools.length > 0 && (
-          <TextInput
-            style={[
-              styles.searchInput,
-              {
-                borderColor: colors.backgroundElement,
-                color: colors.backgroundElement,
-              },
-            ]}
-            placeholder="Search pools..."
-            placeholderTextColor={colors.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-          />
+          <View style={styles.searchWrap}>
+            <Ionicons name="search" size={18} color={TEXT_MUTED} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search pools..."
+              placeholderTextColor={TEXT_MUTED}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+            />
+          </View>
         )}
 
         {loading ? (
@@ -145,46 +146,63 @@ export default function PoolsScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {filteredPools.map((pool) => {
-              const progress = Math.min(pool.total_spent / pool.pool_limit, 1);
+            {filteredPools.map((pool, index) => {
+              const rawPercent = pool.pool_limit > 0 ? (pool.total_spent / pool.pool_limit) * 100 : 0;
+              const barPercent = Math.min(Math.max(rawPercent, 0), 100);
+              const status = poolStatus(pool);
+              const meta = STATUS_META[status];
+              const avatarColors =
+                status === "overspent"
+                  ? { bg: NEGATIVE_RED + "1F", fg: NEGATIVE_RED }
+                  : index % 2 === 0
+                    ? { bg: PRIMARY_GREEN, fg: "#fff" }
+                    : { bg: PRIMARY_GREEN + "14", fg: PRIMARY_GREEN };
+
               return (
                 <TouchableOpacity
                   key={pool.id}
-                  style={[
-                    styles.card,
-                    { backgroundColor: colors.backgroundElement + "15" },
-                  ]}
+                  style={styles.card}
                   onPress={() => router.push(`/social/pool/${pool.id}`)}
                 >
-                  <ThemedText
-                    style={[
-                      styles.poolName,
-                      { color: colors.backgroundElement },
-                    ]}
-                  >
-                    {pool.name}
-                  </ThemedText>
-                  <ThemedText
-                    style={{
-                      color: colors.textSecondary,
-                      fontSize: 13,
-                      marginBottom: Spacing.two,
-                    }}
-                  >
-                    {formatCurrency(pool.total_spent, pool.currency)} /{" "}
-                    {formatCurrency(pool.pool_limit, pool.currency)}
-                  </ThemedText>
-                  <View style={styles.progressBg}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          width: `${progress * 100}%` as `${number}%`,
-                          backgroundColor:
-                            progress > 0.85 ? "#e55" : colors.backgroundElement,
-                        },
-                      ]}
-                    />
+                  <View style={styles.cardTopRow}>
+                    <View style={[styles.avatar, { backgroundColor: avatarColors.bg }]}>
+                      <ThemedText style={[styles.avatarText, { color: avatarColors.fg }]}>
+                        {pool.name.charAt(0).toUpperCase()}
+                      </ThemedText>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={styles.poolName}>{pool.name}</ThemedText>
+                      <ThemedText style={styles.poolAmounts}>
+                        {formatCurrency(pool.total_spent, pool.currency)} /{" "}
+                        {formatCurrency(pool.pool_limit, pool.currency)}
+                      </ThemedText>
+                    </View>
+                    <View style={styles.statusCol}>
+                      <View style={[styles.statusPill, { backgroundColor: meta.color + "14" }]}>
+                        <View style={[styles.statusDot, { backgroundColor: meta.color }]} />
+                        <ThemedText style={[styles.statusText, { color: meta.color }]}>
+                          {meta.label}
+                        </ThemedText>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="#C4C9CE" />
+                    </View>
+                  </View>
+
+                  <View style={styles.progressRow}>
+                    <View style={styles.progressBg}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          {
+                            width: `${barPercent}%` as `${number}%`,
+                            backgroundColor: meta.color,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <ThemedText style={[styles.progressPercent, { color: meta.color }]}>
+                      {Math.round(rawPercent)}%
+                    </ThemedText>
                   </View>
                 </TouchableOpacity>
               );
@@ -297,18 +315,105 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.three,
   },
-  scrollContent: { gap: Spacing.three, paddingBottom: Spacing.four },
-  searchInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: Spacing.three,
-    fontSize: 15,
+  backRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  backText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: PRIMARY_GREEN,
+  },
+  addPoolBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: PRIMARY_GREEN,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    borderWidth: 1.5,
+    borderColor: PRIMARY_GREEN + "40",
+    borderRadius: 16,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
     marginBottom: Spacing.three,
   },
-  card: { borderRadius: 16, padding: Spacing.three },
-  poolName: { fontSize: 18, fontWeight: "700", marginBottom: Spacing.one },
-  progressBg: { height: 8, borderRadius: 4, backgroundColor: "#e0e0e0" },
-  progressFill: { height: 8, borderRadius: 4 },
+  scrollContent: { gap: Spacing.two, paddingBottom: Spacing.four },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: PRIMARY_GREEN,
+  },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: Spacing.three,
+    gap: Spacing.two,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.two,
+  },
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  avatarText: {
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  poolName: { fontSize: 16, fontWeight: "800", color: TEXT_DARK },
+  poolAmounts: { fontSize: 13, color: TEXT_MUTED, marginTop: 2 },
+  statusCol: {
+    alignItems: "flex-end",
+    gap: Spacing.one,
+  },
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 5,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+  },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  progressBg: { flex: 1, height: 7, borderRadius: 4, backgroundColor: "#E7E7E7" },
+  progressFill: { height: 7, borderRadius: 4 },
+  progressPercent: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    width: 42,
+    textAlign: "right",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "#00000066",

@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 export type Friend = {
   id: string;
   username: string;
+  bio: string | null;
   streak_count: number;
   friendship_id: string;
   budget_percent_used: number;
@@ -66,7 +67,7 @@ export function useFriends(userId: string | undefined) {
 
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, username, streak_count, budget_percent_used")
+      .select("id, username, bio, streak_count, budget_percent_used")
       .in("id", friendIds);
 
     if (profiles) {
@@ -74,6 +75,7 @@ export function useFriends(userId: string | undefined) {
         profiles.map((p) => ({
           id: p.id,
           username: p.username,
+          bio: p.bio ?? null,
           streak_count: p.streak_count ?? 0,
           friendship_id: friendshipMap[p.id],
           budget_percent_used: p.budget_percent_used ?? 0,
