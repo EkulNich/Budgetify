@@ -5,6 +5,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
@@ -19,15 +20,25 @@ import { TextField } from "@/components/ui/text-field";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { DEFAULT_BIO } from "@/constants/profile";
 import { Spacing } from "@/constants/theme";
+import { useBalancesSummary } from "@/hooks/data/use-balances-summary";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
+import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
 import { useProfile } from "@/hooks/data/use-profile";
 import { useTheme } from "@/hooks/use-theme";
+import { deleteAccount } from "@/lib/account";
 import { supabase } from "@/lib/supabase";
 
 export default function EditProfileScreen() {
   const { user } = useCurrentUser();
   const { profile, updateProfile } = useProfile(user?.id);
+  const { convert } = useExchangeRates();
+  const { owedToYou, owedByYou } = useBalancesSummary(
+    user?.id,
+    profile?.currency ?? "SGD",
+    convert,
+  );
   const colors = useTheme();
+  const [deleting, setDeleting] = useState(false);
 
   const [bio, setBio] = useState("");
   const [saving, setSaving] = useState(false);
@@ -75,6 +86,45 @@ export default function EditProfileScreen() {
     ]);
   };
 
+  const handleDeleteAccount = () => {
+    const parts: string[] = [];
+    if (owedToYou.length > 0) {
+      parts.push(
+        `${owedToYou.length} ${owedToYou.length === 1 ? "person" : "people"} still owe${owedToYou.length === 1 ? "s" : ""} you money`,
+      );
+    }
+    if (owedByYou.length > 0) {
+      parts.push(
+        `you still owe ${owedByYou.length} ${owedByYou.length === 1 ? "person" : "people"}`,
+      );
+    }
+    const balanceWarning =
+      parts.length > 0
+        ? `\n\nHeads up: ${parts.join(", and ")}. Deleting your account won't settle this — the other side will be left with a balance against a deleted account.`
+        : "";
+
+    Alert.alert(
+      "Delete Account",
+      `This permanently deletes your account. Your personal expenses, friends, and pool memberships are removed. This cannot be undone.${balanceWarning}`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Account",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deleteAccount();
+            } catch (error) {
+              Alert.alert("Error", (error as Error).message);
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -92,7 +142,11 @@ export default function EditProfileScreen() {
             <View style={{ width: 22 }} />
           </View>
 
-          <View style={styles.content}>
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <SectionLabel style={{ color: colors.backgroundElement }}>Bio</SectionLabel>
             <TextField
               value={bio}
@@ -137,7 +191,13 @@ export default function EditProfileScreen() {
             <View style={styles.divider} />
 
             <PrimaryButton label="Sign Out" variant="danger" onPress={handleSignOut} />
-          </View>
+            <PrimaryButton
+              label={deleting ? "Deleting..." : "Delete Account"}
+              variant="danger"
+              loading={deleting}
+              onPress={handleDeleteAccount}
+            />
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </ThemedView>
@@ -155,6 +215,7 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: Spacing.three,
+    paddingBottom: Spacing.four,
   },
   bioInput: {
     minHeight: 80,
