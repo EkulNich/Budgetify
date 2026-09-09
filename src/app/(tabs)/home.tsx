@@ -16,9 +16,9 @@ import { Card } from "@/components/ui/card";
 import { CalendarFilterModal } from "@/components/ui/calendar-filter-modal";
 import { IconBadge } from "@/components/ui/icon-badge";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
-import { getCategoryColor, getCategoryIcon } from "@/constants/categories";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { useCategories, type ResolvedCategory } from "@/hooks/data/use-categories";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
 import type { Expense } from "@/hooks/data/use-expenses";
 import { useExpenses } from "@/hooks/data/use-expenses";
@@ -41,16 +41,17 @@ const PRIMARY_GREEN = "#2D612A";
 
 function SwipeableExpenseRow({
   expense,
+  resolveCategory,
   onDelete,
 }: {
   expense: Expense;
+  resolveCategory: (expense: Expense) => ResolvedCategory;
   onDelete: (id: string) => void;
 }) {
   const isGroupExpense = expense.group_id !== null;
-  const categoryLabel = expense.category
-    ? expense.category.charAt(0).toUpperCase() + expense.category.slice(1)
-    : "Uncategorized";
-  const categoryColor = getCategoryColor(expense.category);
+  const resolved = resolveCategory(expense);
+  const categoryLabel = resolved.label;
+  const categoryColor = resolved.color;
   const dateLabel = formatExpenseDate(expense.created_at);
 
   return (
@@ -64,7 +65,11 @@ function SwipeableExpenseRow({
     >
       <ThemedView style={styles.expenseRow}>
         <IconBadge color={categoryColor}>
-          <Ionicons name={getCategoryIcon(expense.category)} size={19} color={categoryColor} />
+          <Ionicons
+            name={resolved.icon as keyof typeof Ionicons.glyphMap}
+            size={19}
+            color={categoryColor}
+          />
         </IconBadge>
         <View style={{ flex: 1 }}>
           <ThemedText themeColor="backgroundSelected" style={{ fontWeight: "700" }}>
@@ -93,6 +98,17 @@ export default function HomeScreen() {
     deleteExpense,
     refetch: refetchExpenses,
   } = useExpenses(user?.id);
+  const { resolve, refetch: refetchCategories } = useCategories(user?.id);
+  const resolveExpenseCategory = useCallback(
+    (expense: Expense) =>
+      resolve(
+        expense.category,
+        expense.group_id !== null
+          ? { type: "pool", poolId: expense.group_id }
+          : { type: "personal" },
+      ),
+    [resolve],
+  );
   const { recommendations, loading: tipsLoading } = useRecommendations(user?.id);
   const [allExpensesVisible, setAllExpensesVisible] = useState(false);
   const [allTipsVisible, setAllTipsVisible] = useState(false);
@@ -121,6 +137,7 @@ export default function HomeScreen() {
     useCallback(() => {
       stats.refetch();
       refetchExpenses();
+      refetchCategories();
       // Smart Insights are deliberately NOT re-fetched here — they're cached
       // for 24h server-side, and re-checking on every tab focus caused a
       // visible flash back to "no recommendations" before the cache landed.
@@ -251,6 +268,7 @@ export default function HomeScreen() {
                     <SwipeableExpenseRow
                       key={expense.id}
                       expense={expense}
+                      resolveCategory={resolveExpenseCategory}
                       onDelete={handleDelete}
                     />
                   ))
@@ -310,6 +328,7 @@ export default function HomeScreen() {
                       <SwipeableExpenseRow
                         key={expense.id}
                         expense={expense}
+                        resolveCategory={resolveExpenseCategory}
                         onDelete={handleDelete}
                       />
                     ))

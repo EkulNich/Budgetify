@@ -209,19 +209,39 @@ Return JSON only in this format:
 
 type ExpenseInput = {
   amount: number;
-  category: string | null;
+  /** Stable, rename-proof grouping key — the same custom label can mean a
+   *  different category in a different scope, so aggregation must key off
+   *  this, never off `categoryLabel` alone. */
+  categoryKey: string;
+  categoryLabel: string;
   description: string | null;
   createdAt: string;
   isShared: boolean;
 };
 
+/**
+ * Aggregates by the stable `categoryKey` (so a rename never fragments one
+ * category into two lines), then re-keys the result by `categoryLabel` for
+ * a readable prompt — two *different* scopes' custom categories sharing the
+ * exact same label would merge cosmetically here, which is an acceptable
+ * trade-off for a qualitative AI summary (unlike Stats, which must stay
+ * exact and keys by `categoryKey` throughout instead).
+ */
 function summarizeCategories(expenses: ExpenseInput[]): Record<string, number> {
-  const totals: Record<string, number> = {};
+  const totalsByKey: Record<string, number> = {};
+  const labelByKey: Record<string, string> = {};
   for (const e of expenses) {
-    const key = e.category ?? "uncategorized";
-    totals[key] = (totals[key] ?? 0) + Number(e.amount);
+    const key = e.categoryKey || "uncategorized";
+    totalsByKey[key] = (totalsByKey[key] ?? 0) + Number(e.amount);
+    labelByKey[key] = e.categoryLabel || "Uncategorized";
   }
-  return totals;
+
+  const totalsByLabel: Record<string, number> = {};
+  for (const key of Object.keys(totalsByKey)) {
+    const label = labelByKey[key];
+    totalsByLabel[label] = (totalsByLabel[label] ?? 0) + totalsByKey[key];
+  }
+  return totalsByLabel;
 }
 
 Deno.serve(async (req) => {
@@ -259,14 +279,14 @@ Deno.serve(async (req) => {
     transactionCountLastMonth: previous.length,
     transactionsThisMonth: current.map((e) => ({
       amount: Number(e.amount),
-      category: e.category ?? "uncategorized",
+      category: e.categoryLabel || "Uncategorized",
       description: e.description,
       date: e.createdAt,
       isSharedPoolExpense: e.isShared,
     })),
     transactionsLastMonth: previous.map((e) => ({
       amount: Number(e.amount),
-      category: e.category ?? "uncategorized",
+      category: e.categoryLabel || "Uncategorized",
       date: e.createdAt,
       isSharedPoolExpense: e.isShared,
     })),

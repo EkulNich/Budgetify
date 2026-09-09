@@ -16,7 +16,8 @@ import { usePoolBalances } from "@/hooks/data/use-pool-balances";
 import { usePoolMembers } from "@/hooks/data/use-pool-members";
 import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
 import { useAnimatedNumber } from "@/hooks/use-animated-number";
-import type { CategoryKey } from "@/constants/categories";
+import { useCategories } from "@/hooks/data/use-categories";
+import { CategoryEditorSheet } from "@/components/category/category-editor-sheet";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency } from "@/lib/format";
 import { router, useLocalSearchParams } from "expo-router";
@@ -51,9 +52,26 @@ export default function PoolDetailScreen() {
   const { convert } = useExchangeRates();
   const currency = pool?.currency ?? "SGD";
 
+  const {
+    forPool,
+    resolve,
+    poolCategoriesFor,
+    createCategory,
+    renameCategory,
+    archiveCategory,
+    restoreCategory,
+  } = useCategories(user?.id);
+  const poolCategoryScope = { type: "pool" as const, poolId };
+  const poolCustomCategories = forPool(poolId);
+  const poolCategoriesAll = poolCategoriesFor(poolId);
+
   const [expenseModalVisible, setExpenseModalVisible] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [renameModalVisible, setRenameModalVisible] = useState(false);
+  const [categoryEditorVisible, setCategoryEditorVisible] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<
+    { id: number; label: string; icon: string; color: string } | null
+  >(null);
 
   const isOwner = pool?.created_by === user?.id;
 
@@ -61,7 +79,7 @@ export default function PoolDetailScreen() {
     description: string;
     amount: number;
     currency: string;
-    category: CategoryKey;
+    category: string;
     targets: string[];
     splitAmounts: Record<string, number>;
   }) => {
@@ -306,9 +324,72 @@ export default function PoolDetailScreen() {
                   <PoolExpenseRow
                     key={e.id}
                     expense={e}
+                    resolveCategory={(category) => resolve(category, poolCategoryScope)}
                     onDelete={handleDeleteExpense}
                   />
                 ))
+              )}
+            </View>
+
+            {/* Categories */}
+            <View style={styles.section}>
+              <View style={styles.sectionRow}>
+                <ThemedText
+                  style={[styles.sectionLabel, { color: colors.backgroundElement }]}
+                >
+                  Categories
+                </ThemedText>
+                <TouchableOpacity
+                  onPress={() => {
+                    setEditingCategory(null);
+                    setCategoryEditorVisible(true);
+                  }}
+                >
+                  <ThemedText
+                    style={{ color: colors.backgroundElement, fontWeight: "600" }}
+                  >
+                    + Add
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+              {poolCategoriesAll.filter((c) => !c.isArchived).length === 0 ? (
+                <ThemedText style={{ color: "#888" }}>
+                  No custom categories yet — everyone in this pool can add one.
+                </ThemedText>
+              ) : (
+                poolCategoriesAll
+                  .filter((c) => !c.isArchived)
+                  .map((c) => (
+                    <View
+                      key={c.id}
+                      style={[
+                        styles.card,
+                        { backgroundColor: colors.backgroundElement + "15" },
+                      ]}
+                    >
+                      <TouchableOpacity
+                        style={{ flex: 1 }}
+                        onPress={() => {
+                          setEditingCategory({ id: c.id, label: c.label, icon: c.icon, color: c.color });
+                          setCategoryEditorVisible(true);
+                        }}
+                      >
+                        <ThemedText
+                          style={{ color: colors.backgroundElement, fontWeight: "600" }}
+                        >
+                          {c.label}
+                        </ThemedText>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.settleBtn, { borderColor: "#C0392B" }]}
+                        onPress={() => archiveCategory(c.id)}
+                      >
+                        <ThemedText style={{ color: "#C0392B", fontWeight: "600", fontSize: 13 }}>
+                          Archive
+                        </ThemedText>
+                      </TouchableOpacity>
+                    </View>
+                  ))
               )}
             </View>
 
@@ -342,6 +423,12 @@ export default function PoolDetailScreen() {
             colors={colors}
             defaultCurrency={currency}
             convert={convert}
+            categoryScope={poolCategoryScope}
+            customCategories={poolCustomCategories}
+            poolCategories={poolCategoriesAll}
+            createCategory={createCategory}
+            renameCategory={renameCategory}
+            restoreCategory={restoreCategory}
             onClose={() => setExpenseModalVisible(false)}
             onSubmit={handleAddExpense}
           />
@@ -361,6 +448,19 @@ export default function PoolDetailScreen() {
             colors={colors}
             onClose={() => setInviteModalVisible(false)}
             onInvite={handleInvite}
+          />
+
+          <CategoryEditorSheet
+            visible={categoryEditorVisible}
+            colors={colors}
+            scope={poolCategoryScope}
+            editing={editingCategory}
+            categories={poolCategoriesAll}
+            createCategory={createCategory}
+            renameCategory={renameCategory}
+            restoreCategory={restoreCategory}
+            onClose={() => setCategoryEditorVisible(false)}
+            onSaved={() => {}}
           />
         </SafeAreaView>
       </ThemedView>

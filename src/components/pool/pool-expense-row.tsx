@@ -2,26 +2,20 @@ import { StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
-import { CATEGORIES } from "@/constants/categories";
 import { Spacing } from "@/constants/theme";
+import type { ResolvedCategory } from "@/hooks/data/use-categories";
 import type { PoolExpense } from "@/hooks/data/use-pool-expenses";
 import { formatCurrency } from "@/lib/format";
 
 type PoolExpenseRowProps = {
   expense: PoolExpense;
+  resolveCategory: (category: string | null) => ResolvedCategory;
   onDelete: (expense: PoolExpense) => void;
 };
 
-function getCategoryLabelAndColor(category: string | null) {
-  const match = CATEGORIES.find((c) => c.key === category?.toLowerCase());
-  if (match) return { label: match.label, color: match.color };
-  if (category) return { label: category, color: "#888" };
-  return null;
-}
-
-export function PoolExpenseRow({ expense, onDelete }: PoolExpenseRowProps) {
+export function PoolExpenseRow({ expense, resolveCategory, onDelete }: PoolExpenseRowProps) {
   const isSplit = !!expense.split_between && expense.split_between.length > 1;
-  const category = getCategoryLabelAndColor(expense.category);
+  const category = expense.category ? resolveCategory(expense.category) : null;
 
   return (
     <SwipeableRow

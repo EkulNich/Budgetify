@@ -3,10 +3,11 @@ import { Alert, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from
 
 import { ThemedText } from "@/components/themed-text";
 import type { SelectOption } from "@/components/ui/select-modal";
-import { CATEGORIES, type CategoryKey } from "@/constants/categories";
+import { CATEGORIES } from "@/constants/categories";
 import { CURRENCIES } from "@/constants/currencies";
 import type { ThemeColors } from "@/constants/theme";
 import { Spacing } from "@/constants/theme";
+import type { CategoryOption } from "@/hooks/data/use-categories";
 import type { PoolMember } from "@/hooks/data/use-pool-members";
 import { formatCurrency } from "@/lib/format";
 import {
@@ -19,7 +20,8 @@ export type PoolExpenseFormValue = {
   description: string;
   amount: string;
   currency: string;
-  category: CategoryKey | null;
+  /** A system category key, or a custom category's normalized name. */
+  category: string | null;
   selectedMembers: Set<string>;
   splitMode: SplitMode;
   /** user_id -> entered exact amount, only meaningful when splitMode is "exact". */
@@ -73,6 +75,10 @@ type PoolExpenseFormProps = {
    * (much smaller) layout box, or it won't cover the screen correctly.
    */
   onOpenCurrencyPicker: () => void;
+  /** Personal or pool custom categories for this context, appended after the 5 built-ins. */
+  customCategories?: CategoryOption[];
+  /** Opens the category creation sheet. Omit to hide the "+ New" chip entirely. */
+  onAddCategory?: () => void;
 };
 
 /**
@@ -88,6 +94,8 @@ export function PoolExpenseForm({
   onChange,
   showAssignTo = true,
   onOpenCurrencyPicker,
+  customCategories = [],
+  onAddCategory,
 }: PoolExpenseFormProps) {
   const { description, amount, currency, category, selectedMembers, splitMode } = value;
   const isSplitAll = selectedMembers.has("split");
@@ -181,7 +189,7 @@ export function PoolExpenseForm({
           Category
         </ThemedText>
         <View style={styles.chipRow}>
-          {CATEGORIES.map((c) => {
+          {[...CATEGORIES, ...customCategories].map((c) => {
             const selected = category === c.key;
             return (
               <TouchableOpacity
@@ -194,7 +202,7 @@ export function PoolExpenseForm({
                 onPress={() => onChange({ ...value, category: c.key })}
               >
                 <Ionicons
-                  name={c.icon}
+                  name={c.icon as keyof typeof Ionicons.glyphMap}
                   size={14}
                   color={selected ? "#fff" : colors.backgroundElement}
                 />
@@ -209,6 +217,17 @@ export function PoolExpenseForm({
               </TouchableOpacity>
             );
           })}
+          {onAddCategory && (
+            <TouchableOpacity
+              style={[styles.chip, { borderColor: colors.backgroundElement, borderStyle: "dashed" }]}
+              onPress={onAddCategory}
+            >
+              <Ionicons name="add" size={14} color={colors.backgroundElement} />
+              <ThemedText style={{ color: colors.backgroundElement, fontSize: 13 }}>
+                New
+              </ThemedText>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 

@@ -1,10 +1,10 @@
-import type { CategoryKey } from "@/constants/categories";
 import type { ReceiptItem } from "@/lib/receipt";
 
 export type ReviewItem = {
   id: string;
   name: string;
-  category: CategoryKey | null;
+  /** A system category key, or a custom category's normalized name. */
+  category: string | null;
   /** Editable string, seeded from the scanned price. */
   price: string;
   /** Pool member user_ids this item is assigned to. Empty = unassigned. Unused outside a pool. */

@@ -49,35 +49,13 @@ export const CUSTOM_CATEGORY_COLORS = [
   "#42A5F5",
 ];
 
-/** Assigns each category a color: standard categories get their fixed color, others cycle through the custom palette. */
-export function getCategoryColorMap(categories: string[]): Record<string, string> {
-  const colorMap: Record<string, string> = {};
-  let customColorIndex = 0;
-
-  for (const category of categories) {
-    const key = category.toLowerCase().trim();
-    const standardColor = STANDARD_CATEGORY_COLORS[key];
-
-    if (standardColor) {
-      colorMap[category] = standardColor;
-      continue;
-    }
-
-    colorMap[category] =
-      CUSTOM_CATEGORY_COLORS[customColorIndex % CUSTOM_CATEGORY_COLORS.length];
-    customColorIndex += 1;
-  }
-
-  return colorMap;
-}
-
 /** The icon for a category — the standard taxonomy's own icon, or a generic tag for anything else. */
 export function getCategoryIcon(category: string | null): IconName {
   if (!category) return DEFAULT_CATEGORY_ICON;
   return STANDARD_CATEGORY_ICONS[category.toLowerCase().trim()] ?? DEFAULT_CATEGORY_ICON;
 }
 
-/** Fallback color for a single category outside the standard taxonomy — see `getCategoryColorMap` for a whole list. */
+/** Fallback color for a single category outside the standard taxonomy. */
 export const DEFAULT_CATEGORY_COLOR = "#78909C";
 
 /** The color for a single category — the standard taxonomy's own color, or a neutral grey for anything else. */

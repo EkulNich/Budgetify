@@ -3,7 +3,12 @@ import { supabase } from "./supabase";
 
 export type RecommendationExpense = {
     amount: number;
-    category: string | null;
+    /** Stable, rename-proof grouping key (see `useCategories().resolve`). */
+    categoryKey: string;
+    /** Current display label for that key — the same custom key can mean a
+     *  different category in a different scope, so the label alone is never
+     *  safe to aggregate by. */
+    categoryLabel: string;
     description: string | null;
     createdAt: string;
     isShared: boolean;

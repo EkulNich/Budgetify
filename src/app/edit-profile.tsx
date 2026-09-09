@@ -190,6 +190,18 @@ export default function EditProfileScreen() {
 
             <View style={styles.divider} />
 
+            <TouchableOpacity
+              style={styles.navRow}
+              onPress={() => router.push("/manage-categories")}
+            >
+              <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600" }}>
+                Manage Categories
+              </ThemedText>
+              <Ionicons name="chevron-forward" size={18} color={colors.backgroundElement} />
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
             <PrimaryButton label="Sign Out" variant="danger" onPress={handleSignOut} />
             <PrimaryButton
               label={deleting ? "Deleting..." : "Delete Account"}
@@ -225,5 +237,11 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#D7D9DC",
     marginVertical: Spacing.one,
+  },
+  navRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: Spacing.two,
   },
 });

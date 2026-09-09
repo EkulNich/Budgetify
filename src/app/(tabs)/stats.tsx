@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   LayoutChangeEvent,
@@ -19,11 +20,11 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Card } from "@/components/ui/card";
 import { SectionLabel } from "@/components/ui/section-label";
-import { getCategoryColorMap } from "@/constants/categories";
 import { Spacing } from "@/constants/theme";
+import { useCategories, type CategoryScope } from "@/hooks/data/use-categories";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
 import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
-import { useMonthlyExpenses } from "@/hooks/data/use-monthly-expenses";
+import { useMonthlyExpenses, type MonthlyExpense } from "@/hooks/data/use-monthly-expenses";
 import { useProfile } from "@/hooks/data/use-profile";
 import { useAnimatedNumber } from "@/hooks/use-animated-number";
 import { formatCurrency } from "@/lib/format";
@@ -68,6 +69,15 @@ export default function StatsScreen() {
   );
   const { expenses: currentExpenses } = useMonthlyExpenses(user?.id, selectedMonth);
   const { expenses: previousExpenses } = useMonthlyExpenses(user?.id, previousMonth);
+  const { resolve, refetch: refetchCategories } = useCategories(user?.id);
+  useFocusEffect(
+    useCallback(() => {
+      refetchCategories();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.id]),
+  );
+  const scopeForExpense = (e: MonthlyExpense): CategoryScope =>
+    e.group_id !== null ? { type: "pool", poolId: e.group_id } : { type: "personal" };
   const scrollViewRef = useRef<ScrollView>(null);
   const [chartWidth, setChartWidth] = useState(0);
 
@@ -101,36 +111,41 @@ export default function StatsScreen() {
     [previousExpenses, convert, currency],
   );
 
+  // Canonicalized by resolve()'s stable groupKey, not the raw stored string —
+  // otherwise a renamed category (old strings still on old expenses) would
+  // fragment into two separate lines instead of aggregating as one.
   const currentCategoryTotals = useMemo(() => {
     const totals: Record<string, number> = {};
+    const meta: Record<string, { label: string; color: string }> = {};
     for (const e of convertedCurrent) {
-      const key = e.category ?? "others";
-      totals[key] = (totals[key] ?? 0) + e.amount;
+      const resolved = resolve(e.category, scopeForExpense(e));
+      totals[resolved.groupKey] = (totals[resolved.groupKey] ?? 0) + e.amount;
+      meta[resolved.groupKey] = { label: resolved.label, color: resolved.color };
     }
-    return totals;
-  }, [convertedCurrent]);
+    return { totals, meta };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convertedCurrent, resolve]);
 
   const previousCategoryTotals = useMemo(() => {
     const totals: Record<string, number> = {};
     for (const e of convertedPrevious) {
-      const key = e.category ?? "others";
-      totals[key] = (totals[key] ?? 0) + e.amount;
+      const resolved = resolve(e.category, scopeForExpense(e));
+      totals[resolved.groupKey] = (totals[resolved.groupKey] ?? 0) + e.amount;
     }
     return totals;
-  }, [convertedPrevious]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convertedPrevious, resolve]);
 
   const categoryData = useMemo(() => {
-    const entries = Object.entries(currentCategoryTotals);
-    const categoryColorMap = getCategoryColorMap(entries.map(([label]) => label));
-
-    return entries
-      .map(([label, value]) => ({
-        label,
+    return Object.entries(currentCategoryTotals.totals)
+      .map(([groupKey, value]) => ({
+        groupKey,
+        label: currentCategoryTotals.meta[groupKey].label,
         value,
-        color: categoryColorMap[label],
+        color: currentCategoryTotals.meta[groupKey].color,
         changePercent: calculateCategoryChangePercent(
           value,
-          previousCategoryTotals[label] ?? 0,
+          previousCategoryTotals[groupKey] ?? 0,
         ),
       }))
       .sort((a, b) => b.value - a.value);
@@ -183,7 +198,7 @@ export default function StatsScreen() {
         categoryTotals: categoryData.map((c) => ({
           label: c.label,
           current: c.value,
-          previous: previousCategoryTotals[c.label] ?? 0,
+          previous: previousCategoryTotals[c.groupKey] ?? 0,
         })),
         currentAvgDailySpend,
         previousAvgDailySpend,
@@ -376,7 +391,7 @@ export default function StatsScreen() {
                         : 0;
 
                       return (
-                        <View key={item.label} style={styles.legendRow}>
+                        <View key={item.groupKey} style={styles.legendRow}>
                           <View
                             style={[
                               styles.legendDot,

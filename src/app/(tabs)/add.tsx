@@ -19,6 +19,7 @@ import {
   PoolExpenseForm,
   resolveSplitTargets,
 } from "@/components/pool/pool-expense-form";
+import { CategoryEditorSheet } from "@/components/category/category-editor-sheet";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { PrimaryButton } from "@/components/ui/primary-button";
@@ -29,6 +30,7 @@ import {
   type SavedIndividualEntry,
 } from "@/components/receipt/receipt-review-modal";
 import { Spacing } from "@/constants/theme";
+import { useCategories, type CategoryScope } from "@/hooks/data/use-categories";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
 import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
 import { insertExpense } from "@/hooks/data/use-expenses";
@@ -123,6 +125,31 @@ export default function AddScreen() {
   const members = isQuickSplit ? friendsAsMembers : realPoolMembers;
   const { addExpense: addPoolExpense } = usePoolExpenses(poolId);
 
+  const {
+    forPersonal,
+    forPool,
+    poolCategoriesFor,
+    personalCategories,
+    createCategory,
+    renameCategory,
+    restoreCategory,
+  } = useCategories(user?.id);
+  // Quick split's hidden pool is created fresh per submission (see
+  // createQuickSplitPool below) — there's no stable pool identity yet to
+  // scope a custom category to, so it only ever offers the 5 system ones.
+  const categoryScope: CategoryScope | null = isQuickSplit
+    ? null
+    : isGroup && poolId
+      ? { type: "pool", poolId }
+      : { type: "personal" };
+  const customCategories = isQuickSplit
+    ? []
+    : isGroup && poolId
+      ? forPool(poolId)
+      : forPersonal();
+  const categoriesForSheet = isGroup && poolId ? poolCategoriesFor(poolId) : personalCategories;
+  const [categoryEditorVisible, setCategoryEditorVisible] = useState(false);
+
   const [form, setForm] = useState(() =>
     makeEmptyPoolExpenseForm(defaultCurrency),
   );
@@ -157,11 +184,10 @@ export default function AddScreen() {
     entries: SavedIndividualEntry[],
     leftoverAmount: number,
     currency: string,
+    date: string,
   ) => {
     if (!user) return;
-    const createdAt = reviewReceipt?.date
-      ? dateToIsoTimestamp(reviewReceipt.date)
-      : undefined;
+    const createdAt = dateToIsoTimestamp(date);
 
     for (const entry of entries) {
       await insertExpense(user.id, {
@@ -188,11 +214,10 @@ export default function AddScreen() {
     entries: SavedGroupEntry[],
     leftover: { amount: number; targets: string[] } | null,
     currency: string,
+    date: string,
   ) => {
     if (!user || !poolId) return;
-    const createdAt = reviewReceipt?.date
-      ? dateToIsoTimestamp(reviewReceipt.date)
-      : undefined;
+    const createdAt = dateToIsoTimestamp(date);
 
     for (const entry of entries) {
       await addPoolExpense({
@@ -223,11 +248,10 @@ export default function AddScreen() {
     entries: SavedGroupEntry[],
     leftover: { amount: number; targets: string[] } | null,
     currency: string,
+    date: string,
   ) => {
     if (!user || quickSplitParticipants.size === 0) return;
-    const createdAt = reviewReceipt?.date
-      ? dateToIsoTimestamp(reviewReceipt.date)
-      : undefined;
+    const createdAt = dateToIsoTimestamp(date);
 
     const total = entries.reduce((sum, e) => sum + e.amount, 0) + (leftover?.amount ?? 0);
     const newPoolId = await createQuickSplitPool(
@@ -583,6 +607,10 @@ export default function AddScreen() {
                   onChange={setForm}
                   showAssignTo={isGroup}
                   onOpenCurrencyPicker={() => setCurrencyPickerVisible(true)}
+                  customCategories={customCategories}
+                  onAddCategory={
+                    categoryScope ? () => setCategoryEditorVisible(true) : undefined
+                  }
                 />
                 <PrimaryButton
                   label={submitting ? "Adding..." : "Add Expense"}
@@ -656,11 +684,27 @@ export default function AddScreen() {
           date={reviewReceipt.date}
           isGroup={isGroup}
           members={members}
+          customCategories={customCategories}
           defaultCurrency={defaultCurrency}
           convert={convert}
           onClose={() => setReviewReceipt(null)}
           onSaveIndividual={handleSaveReviewIndividual}
           onSaveGroup={isQuickSplit ? handleSaveReviewQuickSplit : handleSaveReviewGroup}
+        />
+      )}
+
+      {categoryScope && (
+        <CategoryEditorSheet
+          visible={categoryEditorVisible}
+          colors={colors}
+          scope={categoryScope}
+          categories={categoriesForSheet}
+          createCategory={createCategory}
+          renameCategory={renameCategory}
+          restoreCategory={restoreCategory}
+          onClose={() => setCategoryEditorVisible(false)}
+          onSaved={(key) => setForm((prev) => ({ ...prev, category: key }))}
+          useNativeModal
         />
       )}
     </ThemedView>

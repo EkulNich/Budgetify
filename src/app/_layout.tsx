@@ -45,6 +45,7 @@ export default function TabLayout() {
             <Stack.Screen name="social/pool/[id]" />
             <Stack.Screen name="edit-profile" />
             <Stack.Screen name="onboarding" />
+            <Stack.Screen name="manage-categories" />
           </Stack.Protected>
           <Stack.Protected guard={!user}>
             <Stack.Screen name="login" />

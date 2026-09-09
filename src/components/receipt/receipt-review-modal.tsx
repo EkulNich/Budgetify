@@ -15,25 +15,31 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { CalendarPicker } from "@/components/ui/calendar-picker";
+import { modalStyles } from "@/components/ui/modal-styles";
 import { SelectModal } from "@/components/ui/select-modal";
 import { CURRENCY_OPTIONS } from "@/components/pool/pool-expense-form";
-import type { CategoryKey } from "@/constants/categories";
 import type { ThemeColors } from "@/constants/theme";
 import { Spacing } from "@/constants/theme";
+import type { CategoryOption } from "@/hooks/data/use-categories";
 import type { PoolMember } from "@/hooks/data/use-pool-members";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatExpenseDate } from "@/lib/format";
 import type { ReceiptItem } from "@/lib/receipt";
 import { ItemAssignSheet } from "./item-assign-sheet";
 import { ReceiptItemRow } from "./receipt-item-row";
 import { makeBlankReviewItem, makeReviewItems, type ReviewItem } from "./review-item";
 
 export type SavedGroupEntry = {
-  category: CategoryKey;
+  category: string;
   name: string;
   amount: number;
   targets: string[];
 };
-export type SavedIndividualEntry = { category: CategoryKey; name: string; amount: number };
+export type SavedIndividualEntry = { category: string; name: string; amount: number };
+
+function todayDateOnly(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 type ReceiptReviewModalProps = {
   visible: boolean;
@@ -44,6 +50,8 @@ type ReceiptReviewModalProps = {
   date: string | null;
   isGroup: boolean;
   members: PoolMember[];
+  /** Personal or pool custom categories for this context, appended after the 5 built-ins. */
+  customCategories?: CategoryOption[];
   defaultCurrency: string;
   convert: (amount: number, from: string, to: string) => number;
   onClose: () => void;
@@ -51,11 +59,13 @@ type ReceiptReviewModalProps = {
     entries: SavedIndividualEntry[],
     leftoverAmount: number,
     currency: string,
+    date: string,
   ) => Promise<void>;
   onSaveGroup: (
     entries: SavedGroupEntry[],
     leftover: { amount: number; targets: string[] } | null,
     currency: string,
+    date: string,
   ) => Promise<void>;
 };
 
@@ -73,6 +83,7 @@ export function ReceiptReviewModal({
   date,
   isGroup,
   members,
+  customCategories = [],
   defaultCurrency,
   convert,
   onClose,
@@ -83,6 +94,8 @@ export function ReceiptReviewModal({
   const [items, setItems] = useState<ReviewItem[]>(() => makeReviewItems(scannedItems));
   const [currency, setCurrency] = useState(defaultCurrency);
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
+  const [expenseDate, setExpenseDate] = useState(() => date ?? todayDateOnly());
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [assigningItemId, setAssigningItemId] = useState<string | null>(null);
   const [assigningAll, setAssigningAll] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -184,7 +197,7 @@ export function ReceiptReviewModal({
           }
         }
 
-        await onSaveGroup(entries, leftover, defaultCurrency);
+        await onSaveGroup(entries, leftover, defaultCurrency, expenseDate);
         onClose();
 
         if (skipped > 0) {
@@ -202,7 +215,7 @@ export function ReceiptReviewModal({
         const leftoverAmount =
           taxFees > 0.01 ? convert(taxFees, currency, defaultCurrency) : 0;
 
-        await onSaveIndividual(entries, leftoverAmount, defaultCurrency);
+        await onSaveIndividual(entries, leftoverAmount, defaultCurrency, expenseDate);
         onClose();
       }
     } catch (error) {
@@ -232,16 +245,25 @@ export function ReceiptReviewModal({
             <View style={styles.summaryRow}>
               <ThemedText style={{ fontSize: 13, color: "#7A7F87" }}>
                 {merchant ?? "Receipt"}
-                {date ? ` · ${date}` : ""}
               </ThemedText>
-              <TouchableOpacity
-                style={[styles.currencyButton, { borderColor: colors.backgroundElement }]}
-                onPress={() => setCurrencyPickerVisible(true)}
-              >
-                <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600", fontSize: 12 }}>
-                  {currency}
-                </ThemedText>
-              </TouchableOpacity>
+              <View style={styles.summaryButtons}>
+                <TouchableOpacity
+                  style={[styles.currencyButton, { borderColor: colors.backgroundElement }]}
+                  onPress={() => setDatePickerVisible(true)}
+                >
+                  <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600", fontSize: 12 }}>
+                    {formatExpenseDate(expenseDate)}
+                  </ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.currencyButton, { borderColor: colors.backgroundElement }]}
+                  onPress={() => setCurrencyPickerVisible(true)}
+                >
+                  <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600", fontSize: 12 }}>
+                    {currency}
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {isGroup && (
@@ -324,6 +346,7 @@ export function ReceiptReviewModal({
                       onChange={updateItem}
                       onRemove={() => handleRemoveItem(item.id)}
                       members={isGroup ? members : undefined}
+                      customCategories={customCategories}
                       onOpenAssign={() => setAssigningItemId(item.id)}
                     />
                   ))
@@ -393,6 +416,35 @@ export function ReceiptReviewModal({
             sortSelectedFirst
           />
 
+          {datePickerVisible && (
+            <View style={styles.dateOverlay}>
+              <View style={[modalStyles.modalCard, { backgroundColor: "#fff" }]}>
+                <ThemedText
+                  style={[modalStyles.modalTitle, { color: colors.backgroundElement }]}
+                >
+                  Expense Date
+                </ThemedText>
+                <CalendarPicker
+                  selectedDate={expenseDate}
+                  markedDates={new Set()}
+                  colors={colors}
+                  onSelectDate={(newDate) => {
+                    setExpenseDate(newDate);
+                    setDatePickerVisible(false);
+                  }}
+                />
+                <TouchableOpacity
+                  style={modalStyles.closeBtn}
+                  onPress={() => setDatePickerVisible(false)}
+                >
+                  <ThemedText style={{ color: "#333", fontWeight: "600", fontSize: 14 }}>
+                    Close
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {assigningItem && (
             <ItemAssignSheet
               visible={assigningItemId !== null}
@@ -442,6 +494,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.four,
     paddingBottom: Spacing.two,
+  },
+  summaryButtons: {
+    flexDirection: "row",
+    gap: Spacing.two,
   },
   currencyButton: {
     borderWidth: 1,
@@ -498,6 +554,13 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     paddingTop: 0,
     gap: Spacing.two,
+  },
+  dateOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#00000066",
+    justifyContent: "flex-end",
+    zIndex: 1000,
+    elevation: 1000,
   },
   addItemBtn: {
     borderWidth: 1,

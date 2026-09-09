@@ -4,6 +4,7 @@ import { ThemedText } from "@/components/themed-text";
 import { CATEGORIES } from "@/constants/categories";
 import type { ThemeColors } from "@/constants/theme";
 import { Spacing } from "@/constants/theme";
+import type { CategoryOption } from "@/hooks/data/use-categories";
 import type { PoolMember } from "@/hooks/data/use-pool-members";
 import type { ReviewItem } from "./review-item";
 
@@ -14,6 +15,8 @@ type ReceiptItemRowProps = {
   onRemove: () => void;
   /** Pool members, for rendering the current assignment. Omit for individual mode. */
   members?: PoolMember[];
+  /** Personal or pool custom categories for this context, appended after the 5 built-ins. */
+  customCategories?: CategoryOption[];
   onOpenAssign?: () => void;
 };
 
@@ -23,6 +26,7 @@ export function ReceiptItemRow({
   onChange,
   onRemove,
   members,
+  customCategories = [],
   onOpenAssign,
 }: ReceiptItemRowProps) {
   const showAssignment = members !== undefined;
@@ -64,7 +68,7 @@ export function ReceiptItemRow({
       </View>
 
       <View style={styles.chipRow}>
-        {CATEGORIES.map((c) => {
+        {[...CATEGORIES, ...customCategories].map((c) => {
           const selected = item.category === c.key;
           return (
             <TouchableOpacity

@@ -10,10 +10,11 @@ import {
 } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
+import { CategoryEditorSheet } from "@/components/category/category-editor-sheet";
 import { modalStyles } from "@/components/ui/modal-styles";
 import { SelectModal } from "@/components/ui/select-modal";
-import type { CategoryKey } from "@/constants/categories";
 import type { ThemeColors } from "@/constants/theme";
+import type { Category, CategoryOption, CategoryScope } from "@/hooks/data/use-categories";
 import type { PoolMember } from "@/hooks/data/use-pool-members";
 import { formatCurrency } from "@/lib/format";
 import {
@@ -35,12 +36,20 @@ type AddExpenseModalProps = {
   /** The pool's currency — everything gets converted into this before saving. */
   defaultCurrency: string;
   convert: (amount: number, from: string, to: string) => number;
+  /** This pool's scope, for creating a new category directly from this form. */
+  categoryScope: CategoryScope;
+  customCategories: CategoryOption[];
+  /** Every category (active + archived) in this pool's scope — passed through to the creation sheet. */
+  poolCategories: Category[];
+  createCategory: (scope: CategoryScope, label: string, icon: string, color: string) => Promise<string>;
+  renameCategory: (id: number, label: string, icon?: string, color?: string) => Promise<void>;
+  restoreCategory: (id: number, updates?: { icon?: string; color?: string }) => Promise<void>;
   onClose: () => void;
   onSubmit: (input: {
     description: string;
     amount: number;
     currency: string;
-    category: CategoryKey;
+    category: string;
     targets: string[];
     splitAmounts: Record<string, number>;
   }) => Promise<void>;
@@ -52,6 +61,12 @@ export function AddExpenseModal({
   colors,
   defaultCurrency,
   convert,
+  categoryScope,
+  customCategories,
+  poolCategories,
+  createCategory,
+  renameCategory,
+  restoreCategory,
   onClose,
   onSubmit,
 }: AddExpenseModalProps) {
@@ -60,6 +75,7 @@ export function AddExpenseModal({
   );
   const [adding, setAdding] = useState(false);
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
+  const [categoryEditorVisible, setCategoryEditorVisible] = useState(false);
 
   const handleAdd = async () => {
     if (!form.amount.trim() || !form.description.trim() || !form.category) {
@@ -141,6 +157,8 @@ export function AddExpenseModal({
             value={form}
             onChange={setForm}
             onOpenCurrencyPicker={() => setCurrencyPickerVisible(true)}
+            customCategories={customCategories}
+            onAddCategory={() => setCategoryEditorVisible(true)}
           />
 
           <View style={modalStyles.row}>
@@ -175,6 +193,19 @@ export function AddExpenseModal({
           onSelect={(next) => setForm((prev) => ({ ...prev, currency: next }))}
           onClose={() => setCurrencyPickerVisible(false)}
           sortSelectedFirst
+        />
+
+        <CategoryEditorSheet
+          visible={categoryEditorVisible}
+          colors={colors}
+          scope={categoryScope}
+          categories={poolCategories}
+          createCategory={createCategory}
+          renameCategory={renameCategory}
+          restoreCategory={restoreCategory}
+          onClose={() => setCategoryEditorVisible(false)}
+          onSaved={(key) => setForm((prev) => ({ ...prev, category: key }))}
+          avoidKeyboard={false}
         />
       </KeyboardAvoidingView>
     </Modal>
