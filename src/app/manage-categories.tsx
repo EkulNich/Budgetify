@@ -118,6 +118,7 @@ export default function ManageCategoriesScreen() {
           restoreCategory={restoreCategory}
           onClose={() => setEditorVisible(false)}
           onSaved={() => {}}
+          useNativeModal
         />
       </SafeAreaView>
     </ThemedView>

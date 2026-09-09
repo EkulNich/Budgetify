@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -149,6 +150,11 @@ export default function AddScreen() {
       : forPersonal();
   const categoriesForSheet = isGroup && poolId ? poolCategoriesFor(poolId) : personalCategories;
   const [categoryEditorVisible, setCategoryEditorVisible] = useState(false);
+  const onManageCategories = !categoryScope
+    ? undefined
+    : categoryScope.type === "personal"
+      ? () => router.push("/manage-categories")
+      : () => router.push(`/social/pool/${categoryScope.poolId}`);
 
   const [form, setForm] = useState(() =>
     makeEmptyPoolExpenseForm(defaultCurrency),
@@ -611,6 +617,7 @@ export default function AddScreen() {
                   onAddCategory={
                     categoryScope ? () => setCategoryEditorVisible(true) : undefined
                   }
+                  onManageCategories={onManageCategories}
                 />
                 <PrimaryButton
                   label={submitting ? "Adding..." : "Add Expense"}

@@ -79,6 +79,8 @@ type PoolExpenseFormProps = {
   customCategories?: CategoryOption[];
   /** Opens the category creation sheet. Omit to hide the "+ New" chip entirely. */
   onAddCategory?: () => void;
+  /** Navigates to that scope's category settings (archive, rename). Omit to hide the gear icon entirely. */
+  onManageCategories?: () => void;
 };
 
 /**
@@ -96,6 +98,7 @@ export function PoolExpenseForm({
   onOpenCurrencyPicker,
   customCategories = [],
   onAddCategory,
+  onManageCategories,
 }: PoolExpenseFormProps) {
   const { description, amount, currency, category, selectedMembers, splitMode } = value;
   const isSplitAll = selectedMembers.has("split");
@@ -185,9 +188,19 @@ export function PoolExpenseForm({
 
       {/* Category */}
       <View style={styles.card}>
-        <ThemedText style={[styles.cardTitle, { color: colors.backgroundElement }]}>
-          Category
-        </ThemedText>
+        <View style={styles.cardHeaderRow}>
+          <ThemedText style={[styles.cardTitle, { color: colors.backgroundElement }]}>
+            Category
+          </ThemedText>
+          {onManageCategories && (
+            <TouchableOpacity
+              onPress={onManageCategories}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="settings-outline" size={18} color={colors.backgroundElement} />
+            </TouchableOpacity>
+          )}
+        </View>
         <View style={styles.chipRow}>
           {[...CATEGORIES, ...customCategories].map((c) => {
             const selected = category === c.key;

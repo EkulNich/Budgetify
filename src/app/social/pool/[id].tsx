@@ -461,6 +461,7 @@ export default function PoolDetailScreen() {
             restoreCategory={restoreCategory}
             onClose={() => setCategoryEditorVisible(false)}
             onSaved={() => {}}
+            useNativeModal
           />
         </SafeAreaView>
       </ThemedView>
