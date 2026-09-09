@@ -40,7 +40,8 @@ export function usePools(userId: string | undefined) {
     const { data: groups } = await supabase
       .from("groups")
       .select("id, name, pool_limit, created_by, currency")
-      .in("id", groupIds);
+      .in("id", groupIds)
+      .eq("is_quick_split", false);
 
     if (!groups) {
       setLoading(false);
@@ -96,4 +97,50 @@ export async function createPool(
     console.error("Failed to add pool creator as a member:", memberError.message);
     throw memberError;
   }
+}
+
+/**
+ * Creates a hidden pool behind a quick split — same shape as a real pool
+ * (so every existing balance/settlement/nudge/history mechanism just works
+ * unchanged), but flagged so it never shows up in the user-facing Pools
+ * list. `participantIds` should NOT include the creator; they're added as a
+ * member automatically. Returns the new pool's id.
+ */
+export async function createQuickSplitPool(
+  creatorId: string,
+  participantIds: string[],
+  name: string,
+  currency: string,
+  poolLimitPlaceholder: number,
+): Promise<number> {
+  const { data: group, error } = await supabase
+    .from("groups")
+    .insert({
+      name,
+      created_by: creatorId,
+      pool_limit: poolLimitPlaceholder,
+      currency,
+      is_quick_split: true,
+    })
+    .select()
+    .single();
+
+  if (error || !group) {
+    throw error ?? new Error("Failed to create quick split");
+  }
+
+  const memberIds = [creatorId, ...participantIds];
+  const { error: memberError } = await supabase.from("group_members").insert(
+    memberIds.map((userId) => ({
+      group_id: group.id,
+      user_id: userId,
+      contribution_limit: poolLimitPlaceholder,
+    })),
+  );
+  if (memberError) {
+    console.error("Failed to add quick split members:", memberError.message);
+    throw memberError;
+  }
+
+  return group.id;
 }

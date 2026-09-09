@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -6,6 +6,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -31,13 +32,14 @@ import { Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/data/use-current-user";
 import { useExchangeRates } from "@/hooks/data/use-exchange-rates";
 import { insertExpense } from "@/hooks/data/use-expenses";
+import { useFriends } from "@/hooks/data/use-friends";
 import {
   INDIVIDUAL_TARGET,
   useLastExpenseTarget,
 } from "@/hooks/data/use-last-expense-target";
-import { usePoolExpenses } from "@/hooks/data/use-pool-expenses";
-import { usePoolMembers } from "@/hooks/data/use-pool-members";
-import { usePools } from "@/hooks/data/use-pools";
+import { addExpenseToPool, usePoolExpenses } from "@/hooks/data/use-pool-expenses";
+import { usePoolMembers, type PoolMember } from "@/hooks/data/use-pool-members";
+import { createQuickSplitPool, usePools } from "@/hooks/data/use-pools";
 import { useProfile } from "@/hooks/data/use-profile";
 import { useReceiptScan } from "@/hooks/data/use-receipt-scan";
 import { useTheme } from "@/hooks/use-theme";
@@ -48,6 +50,14 @@ import {
   validateExactSplit,
   validatePercentageSplit,
 } from "@/lib/split";
+
+const QUICK_SPLIT_TARGET = "quick_split";
+
+function quickSplitName(usernames: string[]): string {
+  if (usernames.length === 0) return "Quick Split";
+  if (usernames.length <= 2) return `Split with ${usernames.join(", ")}`;
+  return `Split with ${usernames.slice(0, 2).join(", ")} +${usernames.length - 2}`;
+}
 
 export default function AddScreen() {
   const { user } = useCurrentUser();
@@ -61,12 +71,15 @@ export default function AddScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
 
+  const isQuickSplit = target === QUICK_SPLIT_TARGET;
+
   // If the previously-selected pool no longer exists (deleted, or the user left it),
   // fall back to Individual once we actually know the current pool list.
   useEffect(() => {
     if (!targetLoaded || poolsLoading) return;
     if (
       target !== INDIVIDUAL_TARGET &&
+      target !== QUICK_SPLIT_TARGET &&
       !pools.some((p) => String(p.id) === target)
     ) {
       setTarget(INDIVIDUAL_TARGET);
@@ -74,15 +87,40 @@ export default function AddScreen() {
   }, [targetLoaded, poolsLoading, pools, target, setTarget]);
 
   const selectedPool =
-    target !== INDIVIDUAL_TARGET
+    target !== INDIVIDUAL_TARGET && !isQuickSplit
       ? pools.find((p) => String(p.id) === target)
       : undefined;
   const poolId = selectedPool?.id ?? null;
   const isGroup = target !== INDIVIDUAL_TARGET;
   const defaultCurrency =
-    (isGroup ? selectedPool?.currency : profile?.currency) ?? "SGD";
+    (isQuickSplit ? profile?.currency : isGroup ? selectedPool?.currency : profile?.currency) ??
+    "SGD";
 
-  const { members } = usePoolMembers(poolId);
+  const { friends } = useFriends(user?.id);
+  const [quickSplitParticipants, setQuickSplitParticipants] = useState<Set<string>>(
+    new Set(),
+  );
+  const [friendSearch, setFriendSearch] = useState("");
+  const filteredFriends = useMemo(() => {
+    const query = friendSearch.trim().toLowerCase();
+    if (!query) return friends;
+    return friends.filter((f) => f.username.toLowerCase().includes(query));
+  }, [friends, friendSearch]);
+  const friendsAsMembers: PoolMember[] = useMemo(
+    () =>
+      friends
+        .filter((f) => quickSplitParticipants.has(f.id))
+        .map((f) => ({
+          user_id: f.id,
+          username: f.username,
+          contribution_limit: 0,
+          amount_spent: 0,
+        })),
+    [friends, quickSplitParticipants],
+  );
+
+  const { members: realPoolMembers } = usePoolMembers(poolId);
+  const members = isQuickSplit ? friendsAsMembers : realPoolMembers;
   const { addExpense: addPoolExpense } = usePoolExpenses(poolId);
 
   const [form, setForm] = useState(() =>
@@ -181,8 +219,54 @@ export default function AddScreen() {
     Alert.alert("Saved!", `${entries.length + (leftover ? 1 : 0)} expense(s) added.`);
   };
 
+  const handleSaveReviewQuickSplit = async (
+    entries: SavedGroupEntry[],
+    leftover: { amount: number; targets: string[] } | null,
+    currency: string,
+  ) => {
+    if (!user || quickSplitParticipants.size === 0) return;
+    const createdAt = reviewReceipt?.date
+      ? dateToIsoTimestamp(reviewReceipt.date)
+      : undefined;
+
+    const total = entries.reduce((sum, e) => sum + e.amount, 0) + (leftover?.amount ?? 0);
+    const newPoolId = await createQuickSplitPool(
+      user.id,
+      members.map((m) => m.user_id),
+      quickSplitName(members.map((m) => m.username)),
+      currency,
+      total,
+    );
+
+    for (const entry of entries) {
+      await addExpenseToPool(newPoolId, {
+        userId: user.id,
+        description: entry.name,
+        amount: entry.amount,
+        currency,
+        category: entry.category,
+        targets: [user.id, ...entry.targets],
+        createdAt,
+      });
+    }
+    if (leftover) {
+      await addExpenseToPool(newPoolId, {
+        userId: user.id,
+        description: "Tax & Fees",
+        amount: leftover.amount,
+        currency,
+        category: "others",
+        targets: [user.id, ...leftover.targets],
+        createdAt,
+      });
+    }
+    Alert.alert("Saved!", `${entries.length + (leftover ? 1 : 0)} expense(s) added.`);
+    setQuickSplitParticipants(new Set());
+  };
+
   const options = [
     { value: INDIVIDUAL_TARGET, label: "Individual" },
+    { value: QUICK_SPLIT_TARGET, label: "Quick Split" },
     ...pools.map((p) => ({ value: String(p.id), label: p.name })),
   ];
   const currentLabel =
@@ -284,6 +368,91 @@ export default function AddScreen() {
     }
   };
 
+  const handleAddQuickSplit = async () => {
+    if (!user || !profile) return;
+    if (!form.amount.trim() || !form.description.trim() || !form.category) {
+      Alert.alert("Missing info", "Please fill in all fields.");
+      return;
+    }
+    if (quickSplitParticipants.size === 0) {
+      Alert.alert("Missing info", "Pick at least one friend to split with.");
+      return;
+    }
+
+    const chosenFriendIds = resolveSplitTargets(form.selectedMembers, members);
+    const targets = [user.id, ...chosenFriendIds];
+    const totalAmount = parseFloat(form.amount);
+    const quickSplitCurrency = profile.currency ?? "SGD";
+
+    if (form.splitMode === "exact") {
+      const validation = validateExactSplit(totalAmount, targets, form.customAmounts);
+      if (!validation.valid) {
+        Alert.alert(
+          "Amounts don't add up",
+          `The amounts you entered are ${validation.remaining > 0 ? "short by" : "over by"} ${formatCurrency(Math.abs(validation.remaining), form.currency)}. Make them add up to the total before saving.`,
+        );
+        return;
+      }
+    } else if (form.splitMode === "percentage") {
+      const validation = validatePercentageSplit(targets, form.customPercentages);
+      if (!validation.valid) {
+        Alert.alert(
+          "Percentages don't add up to 100%",
+          `Your percentages are ${validation.remaining > 0 ? "short by" : "over by"} ${Math.abs(validation.remaining).toFixed(0)}%. Make them add up to 100% before saving.`,
+        );
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    try {
+      const rawSplitAmounts = calculateSplitAmounts(
+        totalAmount,
+        targets,
+        form.splitMode,
+        form.customAmounts,
+        form.customPercentages,
+      );
+      const splitAmounts = Object.fromEntries(
+        Object.entries(rawSplitAmounts).map(([id, shareAmount]) => [
+          id,
+          convert(shareAmount, form.currency, quickSplitCurrency),
+        ]),
+      );
+      const convertedTotal = convert(totalAmount, form.currency, quickSplitCurrency);
+
+      const participantNames = members
+        .filter((m) => chosenFriendIds.includes(m.user_id))
+        .map((m) => m.username);
+
+      const newPoolId = await createQuickSplitPool(
+        user.id,
+        chosenFriendIds,
+        quickSplitName(participantNames),
+        quickSplitCurrency,
+        convertedTotal,
+      );
+
+      await addExpenseToPool(newPoolId, {
+        userId: user.id,
+        description: form.description.trim(),
+        amount: convertedTotal,
+        currency: quickSplitCurrency,
+        category: form.category,
+        targets,
+        splitAmounts,
+      });
+
+      Alert.alert("Saved!", "Expense added.");
+      setForm(makeEmptyPoolExpenseForm(quickSplitCurrency));
+      setQuickSplitParticipants(new Set());
+    } catch (error) {
+      Alert.alert("Error", (error as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const initializing =
     !targetLoaded || (isGroup && poolsLoading);
 
@@ -330,43 +499,126 @@ export default function AddScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.formSection}>
-              <PoolExpenseForm
-                members={members}
-                colors={colors}
-                value={form}
-                onChange={setForm}
-                showAssignTo={isGroup}
-                onOpenCurrencyPicker={() => setCurrencyPickerVisible(true)}
-              />
-              <PrimaryButton
-                label={submitting ? "Adding..." : "Add Expense"}
-                loading={submitting}
-                onPress={isGroup ? handleAddGroup : handleAddIndividual}
-              />
-
-              <TouchableOpacity
-                style={[styles.scanButton, { borderColor: colors.backgroundElement }]}
-                onPress={handleScanReceipt}
-                disabled={scanning}
-              >
-                {scanning ? (
-                  <ActivityIndicator color={colors.backgroundElement} />
+            {isQuickSplit && (
+              <View style={styles.addForSection}>
+                <ThemedText style={[styles.label, { color: colors.backgroundElement }]}>
+                  Split with
+                </ThemedText>
+                {friends.length === 0 ? (
+                  <ThemedText style={{ color: "#9AA0A8", fontSize: 13 }}>
+                    Add friends first to quick split with them.
+                  </ThemedText>
                 ) : (
                   <>
-                    <View style={styles.scanButtonTitleRow}>
-                      <Ionicons name="camera-outline" size={16} color={colors.backgroundElement} />
-                      <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600" }}>
-                        Scan Receipt
-                      </ThemedText>
+                    <View
+                      style={[
+                        styles.friendSearchRow,
+                        { borderColor: colors.backgroundElement },
+                      ]}
+                    >
+                      <Ionicons name="search" size={15} color="#9AA0A8" />
+                      <TextInput
+                        style={[styles.friendSearchInput, { color: colors.backgroundElement }]}
+                        placeholder="Search friends..."
+                        placeholderTextColor="#9AA0A8"
+                        value={friendSearch}
+                        onChangeText={setFriendSearch}
+                      />
                     </View>
-                    <ThemedText style={styles.scanButtonSubtext}>
-                      Auto-fill details from a receipt
-                    </ThemedText>
+
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={{ flexGrow: 0 }}
+                    >
+                      <View style={styles.chipRow}>
+                        {filteredFriends.map((f) => {
+                          const selected = quickSplitParticipants.has(f.id);
+                          return (
+                            <TouchableOpacity
+                              key={f.id}
+                              style={[
+                                styles.chip,
+                                { borderColor: colors.backgroundElement },
+                                selected && { backgroundColor: colors.backgroundElement },
+                              ]}
+                              onPress={() =>
+                                setQuickSplitParticipants((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(f.id)) next.delete(f.id);
+                                  else next.add(f.id);
+                                  return next;
+                                })
+                              }
+                            >
+                              <Ionicons
+                                name="person-outline"
+                                size={13}
+                                color={selected ? "#fff" : colors.backgroundElement}
+                              />
+                              <ThemedText
+                                style={{
+                                  color: selected ? "#fff" : colors.backgroundElement,
+                                  fontSize: 13,
+                                }}
+                              >
+                                {f.username}
+                              </ThemedText>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </ScrollView>
                   </>
                 )}
-              </TouchableOpacity>
-            </View>
+              </View>
+            )}
+
+            {(!isQuickSplit || quickSplitParticipants.size > 0) && (
+              <View style={styles.formSection}>
+                <PoolExpenseForm
+                  members={members}
+                  colors={colors}
+                  value={form}
+                  onChange={setForm}
+                  showAssignTo={isGroup}
+                  onOpenCurrencyPicker={() => setCurrencyPickerVisible(true)}
+                />
+                <PrimaryButton
+                  label={submitting ? "Adding..." : "Add Expense"}
+                  loading={submitting}
+                  onPress={
+                    isQuickSplit
+                      ? handleAddQuickSplit
+                      : isGroup
+                        ? handleAddGroup
+                        : handleAddIndividual
+                  }
+                />
+
+                <TouchableOpacity
+                  style={[styles.scanButton, { borderColor: colors.backgroundElement }]}
+                  onPress={handleScanReceipt}
+                  disabled={scanning}
+                >
+                  {scanning ? (
+                    <ActivityIndicator color={colors.backgroundElement} />
+                  ) : (
+                    <>
+                      <View style={styles.scanButtonTitleRow}>
+                        <Ionicons name="camera-outline" size={16} color={colors.backgroundElement} />
+                        <ThemedText style={{ color: colors.backgroundElement, fontWeight: "600" }}>
+                          Scan Receipt
+                        </ThemedText>
+                      </View>
+                      <ThemedText style={styles.scanButtonSubtext}>
+                        Auto-fill details from a receipt
+                      </ThemedText>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -408,7 +660,7 @@ export default function AddScreen() {
           convert={convert}
           onClose={() => setReviewReceipt(null)}
           onSaveIndividual={handleSaveReviewIndividual}
-          onSaveGroup={handleSaveReviewGroup}
+          onSaveGroup={isQuickSplit ? handleSaveReviewQuickSplit : handleSaveReviewGroup}
         />
       )}
     </ThemedView>
@@ -444,6 +696,35 @@ const styles = StyleSheet.create({
   },
   formSection: {
     gap: Spacing.two,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.two,
+  },
+  friendSearchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+    marginBottom: Spacing.one,
+  },
+  friendSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 4,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
   },
   dropdown: {
     flexDirection: "row",

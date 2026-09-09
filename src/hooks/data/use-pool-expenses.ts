@@ -17,6 +17,67 @@ export type PoolExpense = {
   currency: string;
 };
 
+export type AddPoolExpenseInput = {
+  userId: string;
+  category: string;
+  /** Already converted into the pool's currency — see `currency`. */
+  amount: number;
+  currency: string;
+  description: string;
+  targets: string[];
+  /**
+   * Per-target share for a custom (exact-amount or percentage) split.
+   * Omit for an equal split — each target gets `amount / targets.length`.
+   */
+  splitAmounts?: Record<string, number>;
+  /** Overrides created_at (e.g. a scanned receipt's printed date). Defaults to now. */
+  createdAt?: string;
+};
+
+/**
+ * Inserts a group expense and mirrors it into each target's personal
+ * expenses. Standalone (not just the hook's callback) so it can be called
+ * against a pool id that was just created moments ago — e.g. quick split's
+ * hidden pool — without needing a `usePoolExpenses` hook already mounted
+ * for it.
+ */
+export async function addExpenseToPool(poolId: number, input: AddPoolExpenseInput) {
+  const equalShare = input.amount / input.targets.length;
+  const shareFor = (userId: string) => input.splitAmounts?.[userId] ?? equalShare;
+
+  const { error: insertError } = await supabase.from("group_expenses").insert({
+    group_id: poolId,
+    added_by: input.userId,
+    amount: input.amount,
+    description: input.description,
+    split_between: input.targets,
+    split_amounts: input.splitAmounts ?? null,
+    category: input.category,
+    currency: input.currency,
+    ...(input.createdAt ? { created_at: input.createdAt } : {}),
+  });
+  if (insertError) {
+    console.error("Failed to add pool expense:", insertError.message);
+    throw insertError;
+  }
+
+  for (const userId of input.targets) {
+    const { error: mirrorError } = await supabase.rpc("insert_expense_for_user", {
+      p_user_id: userId,
+      p_amount: shareFor(userId),
+      p_category: input.category,
+      p_description: input.description,
+      p_group_id: poolId,
+      p_currency: input.currency,
+      p_created_at: input.createdAt ?? null,
+    });
+    if (mirrorError) {
+      console.error("Failed to mirror personal expense:", mirrorError.message);
+      throw mirrorError;
+    }
+  }
+}
+
 export function usePoolExpenses(poolId: number | null) {
   const [expenses, setExpenses] = useState<PoolExpense[]>([]);
 
@@ -80,58 +141,9 @@ export function usePoolExpenses(poolId: number | null) {
   }, [refetch]);
 
   const addExpense = useCallback(
-    async (input: {
-      userId: string;
-      category: string;
-      /** Already converted into the pool's currency — see `currency`. */
-      amount: number;
-      currency: string;
-      description: string;
-      targets: string[];
-      /**
-       * Per-target share for a custom (exact-amount or percentage) split.
-       * Omit for an equal split — each target gets `amount / targets.length`.
-       */
-      splitAmounts?: Record<string, number>;
-      /** Overrides created_at (e.g. a scanned receipt's printed date). Defaults to now. */
-      createdAt?: string;
-    }) => {
+    async (input: AddPoolExpenseInput) => {
       if (!poolId) throw new Error("Cannot add expense: no pool selected");
-      const equalShare = input.amount / input.targets.length;
-      const shareFor = (userId: string) => input.splitAmounts?.[userId] ?? equalShare;
-
-      const { error: insertError } = await supabase.from("group_expenses").insert({
-        group_id: poolId,
-        added_by: input.userId,
-        amount: input.amount,
-        description: input.description,
-        split_between: input.targets,
-        split_amounts: input.splitAmounts ?? null,
-        category: input.category,
-        currency: input.currency,
-        ...(input.createdAt ? { created_at: input.createdAt } : {}),
-      });
-      if (insertError) {
-        console.error("Failed to add pool expense:", insertError.message);
-        throw insertError;
-      }
-
-      for (const userId of input.targets) {
-        const { error: mirrorError } = await supabase.rpc("insert_expense_for_user", {
-          p_user_id: userId,
-          p_amount: shareFor(userId),
-          p_category: input.category,
-          p_description: input.description,
-          p_group_id: poolId,
-          p_currency: input.currency,
-          p_created_at: input.createdAt ?? null,
-        });
-        if (mirrorError) {
-          console.error("Failed to mirror personal expense:", mirrorError.message);
-          throw mirrorError;
-        }
-      }
-
+      await addExpenseToPool(poolId, input);
       await refetch();
     },
     [poolId, refetch],
